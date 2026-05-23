@@ -470,55 +470,73 @@ export type Database = {
         Row: {
           closer_initials: string | null
           closer_name: string | null
+          closer_role: string | null
           created_at: string
           description: string
           due_date: string | null
           expires_at: string | null
+          flexible_config: Json | null
           id: string
+          lead_cpf: string | null
           lead_email: string | null
           lead_name: string
           lead_phone: string | null
+          mode: string
+          paid_amount: number
           paid_at: string | null
           paid_method: string | null
           payment_lines: Json
           producer_id: string
           status: string
+          transactions: Json
           value: number
         }
         Insert: {
           closer_initials?: string | null
           closer_name?: string | null
+          closer_role?: string | null
           created_at?: string
           description: string
           due_date?: string | null
           expires_at?: string | null
+          flexible_config?: Json | null
           id: string
+          lead_cpf?: string | null
           lead_email?: string | null
           lead_name: string
           lead_phone?: string | null
+          mode?: string
+          paid_amount?: number
           paid_at?: string | null
           paid_method?: string | null
           payment_lines?: Json
           producer_id: string
           status?: string
+          transactions?: Json
           value: number
         }
         Update: {
           closer_initials?: string | null
           closer_name?: string | null
+          closer_role?: string | null
           created_at?: string
           description?: string
           due_date?: string | null
           expires_at?: string | null
+          flexible_config?: Json | null
           id?: string
+          lead_cpf?: string | null
           lead_email?: string | null
           lead_name?: string
           lead_phone?: string | null
+          mode?: string
+          paid_amount?: number
           paid_at?: string | null
           paid_method?: string | null
           payment_lines?: Json
           producer_id?: string
           status?: string
+          transactions?: Json
           value?: number
         }
         Relationships: []

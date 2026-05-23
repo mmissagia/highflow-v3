@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Lock, Shield, AlertCircle, Check, Pencil, Loader2 } from "lucide-react";
+import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,13 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type PayType = "pix" | "cartao" | "tmb";
 
@@ -23,18 +29,41 @@ interface PaymentLine {
   firstDue?: string;
 }
 
+interface FlexibleConfig {
+  min_amount_per_tx: number;
+  allowed_methods: PayType[];
+  cartao_max_installments: number;
+  tmb_max_installments: number;
+  instruction?: string | null;
+}
+
+interface Transaction {
+  id: string;
+  method: PayType;
+  value: number;
+  installments: number;
+  status: string;
+  paid_at: string;
+}
+
 interface PaymentLinkRow {
   id: string;
   lead_name: string;
   lead_email: string | null;
   lead_phone: string | null;
+  lead_cpf: string | null;
   description: string;
   value: number;
   payment_lines: PaymentLine[];
   closer_name: string | null;
   closer_initials: string | null;
-  status: "pending" | "paid" | "expired" | "cancelled";
+  closer_role: string | null;
+  status: "pending" | "partial" | "paid" | "expired" | "cancelled";
   paid_method: string | null;
+  mode: "arranged" | "flexible";
+  flexible_config: FlexibleConfig | null;
+  transactions: Transaction[];
+  paid_amount: number;
 }
 
 const formatCurrency = (v: number) =>
@@ -50,6 +79,18 @@ const methodIcon: Record<PayType, string> = {
   pix: "🟢",
   cartao: "💳",
   tmb: "📄",
+};
+
+const maskCpf = (v: string) =>
+  v.replace(/\D/g, "").slice(0, 11)
+   .replace(/(\d{3})(\d)/, "$1.$2")
+   .replace(/(\d{3})(\d)/, "$1.$2")
+   .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+
+const maskPhone = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim().replace(/-$/, "");
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim().replace(/-$/, "");
 };
 
 function HighFlowMark() {
@@ -79,7 +120,7 @@ function PageFooter() {
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-muted/30">
-      <div className="mx-auto max-w-[560px] px-4 py-8">
+      <div className="mx-auto max-w-[560px] px-4 py-8 space-y-4">
         <HighFlowMark />
         {children}
         <PageFooter />
@@ -100,16 +141,18 @@ function StateCard({ icon, title, hint }: { icon: React.ReactNode; title: string
   );
 }
 
-function CustomerFields({
+interface CustomerData { name: string; cpf: string; email: string; phone: string }
+
+function CustomerCard({
   data, onChange, prefilled,
 }: {
-  data: { name: string; cpf: string; email: string; phone: string };
-  onChange: (v: typeof data) => void;
+  data: CustomerData;
+  onChange: (v: CustomerData) => void;
   prefilled: { name: boolean; email: boolean; phone: boolean };
 }) {
   const [editing, setEditing] = useState<Record<string, boolean>>({});
-  const lock = (k: string, isPrefilled: boolean) => isPrefilled && !editing[k];
-  const renderEdit = (k: string) => (
+  const lock = (k: keyof typeof prefilled) => prefilled[k] && !editing[k];
+  const editBtn = (k: string) => (
     <button
       type="button"
       className="text-xs text-muted-foreground hover:text-foreground"
@@ -119,33 +162,56 @@ function CustomerFields({
     </button>
   );
   return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <Label>Nome completo</Label>
-          {prefilled.name && !editing.name && renderEdit("name")}
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <h3 className="text-sm font-semibold">Seus dados</h3>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label>Nome completo</Label>
+            {prefilled.name && !editing.name && editBtn("name")}
+          </div>
+          <Input
+            value={data.name}
+            readOnly={lock("name")}
+            className={cn(lock("name") && "bg-muted/40")}
+            onChange={(e) => onChange({ ...data, name: e.target.value })}
+          />
         </div>
-        <Input value={data.name} readOnly={lock("name", prefilled.name)} onChange={(e) => onChange({ ...data, name: e.target.value })} />
-      </div>
-      <div className="space-y-1">
-        <Label>CPF</Label>
-        <Input value={data.cpf} placeholder="000.000.000-00" onChange={(e) => onChange({ ...data, cpf: e.target.value })} />
-      </div>
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <Label>E-mail</Label>
-          {prefilled.email && !editing.email && renderEdit("email")}
+        <div className="space-y-1">
+          <Label>CPF</Label>
+          <Input
+            value={data.cpf}
+            placeholder="000.000.000-00"
+            onChange={(e) => onChange({ ...data, cpf: maskCpf(e.target.value) })}
+          />
         </div>
-        <Input type="email" value={data.email} readOnly={lock("email", prefilled.email)} onChange={(e) => onChange({ ...data, email: e.target.value })} />
-      </div>
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <Label>Celular</Label>
-          {prefilled.phone && !editing.phone && renderEdit("phone")}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label>E-mail</Label>
+            {prefilled.email && !editing.email && editBtn("email")}
+          </div>
+          <Input
+            type="email"
+            value={data.email}
+            readOnly={lock("email")}
+            className={cn(lock("email") && "bg-muted/40")}
+            onChange={(e) => onChange({ ...data, email: e.target.value })}
+          />
         </div>
-        <Input value={data.phone} readOnly={lock("phone", prefilled.phone)} onChange={(e) => onChange({ ...data, phone: e.target.value })} />
-      </div>
-    </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label>Celular</Label>
+            {prefilled.phone && !editing.phone && editBtn("phone")}
+          </div>
+          <Input
+            value={data.phone}
+            readOnly={lock("phone")}
+            className={cn(lock("phone") && "bg-muted/40")}
+            onChange={(e) => onChange({ ...data, phone: maskPhone(e.target.value) })}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -175,98 +241,68 @@ function CardFields() {
   );
 }
 
-function MethodForm({
-  line,
-  customer,
-  setCustomer,
-  prefilled,
-  onPay,
-  isPaying,
-}: {
-  line: PaymentLine;
-  customer: { name: string; cpf: string; email: string; phone: string };
-  setCustomer: (c: typeof customer) => void;
-  prefilled: { name: boolean; email: boolean; phone: boolean };
-  onPay: (method: PayType) => void;
-  isPaying: boolean;
-}) {
-  const installmentValue = line.value / Math.max(1, line.installments);
-
-  if (line.type === "cartao") {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-md bg-muted/50 p-3 text-sm">
-          <p className="font-medium">
-            {line.installments}x {formatCurrency(installmentValue)}
-          </p>
-          <p className="text-xs text-muted-foreground">Total {formatCurrency(line.value)}</p>
-          <span className="mt-2 inline-block rounded px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "#7C3AED15", color: "#7C3AED" }}>
-            Z2Pay — TMB — PIX
-          </span>
-        </div>
-        <CustomerFields data={customer} onChange={setCustomer} prefilled={prefilled} />
-        <CardFields />
-        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={() => onPay("cartao")}>
-          {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Pagar {formatCurrency(line.value)}
-        </Button>
-      </div>
-    );
-  }
-
-  if (line.type === "pix") {
-    return <PixForm line={line} customer={customer} setCustomer={setCustomer} prefilled={prefilled} onPay={onPay} isPaying={isPaying} />;
-  }
-
-  // tmb
+function PixBlock({
+  amount, isPaying, onPay,
+}: { amount: number; isPaying: boolean; onPay: () => void }) {
+  const [code] = useState(() => Array.from({ length: 80 }, () => "abcdef0123456789"[Math.floor(Math.random() * 16)]).join(""));
   return (
-    <div className="space-y-4">
-      <div className="rounded-md bg-muted/50 p-3 text-sm">
-        <p className="font-medium">{line.installments}x {formatCurrency(installmentValue)}</p>
-        <p className="text-xs text-muted-foreground">Boleto financiado via TMB — análise rápida</p>
+    <div className="space-y-3">
+      <div className="mx-auto flex h-[220px] w-[220px] items-center justify-center rounded-md border border-border bg-white text-xs text-muted-foreground font-mono">
+        QR PIX MOCK
       </div>
-      <CustomerFields data={customer} onChange={setCustomer} prefilled={prefilled} />
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={() => onPay("tmb")}>
+      <div className="space-y-1">
+        <Label className="text-xs">Copia e cola Pix</Label>
+        <div className="flex gap-2">
+          <Input readOnly value={code} className="font-mono text-xs" />
+          <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(code); toast.success("Copiado"); }}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">Após pagar, clique no botão abaixo para confirmar.</p>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
         {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        Gerar boletos {formatCurrency(line.value)}
+        Já paguei {formatCurrency(amount)}
       </Button>
     </div>
   );
 }
 
-function PixForm({
-  line, customer, setCustomer, prefilled, onPay, isPaying,
+function MethodFormBody({
+  type, value, installments, isPaying, onPay,
 }: {
-  line: PaymentLine;
-  customer: { name: string; cpf: string; email: string; phone: string };
-  setCustomer: (c: typeof customer) => void;
-  prefilled: { name: boolean; email: boolean; phone: boolean };
-  onPay: (m: PayType) => void;
-  isPaying: boolean;
+  type: PayType; value: number; installments: number; isPaying: boolean; onPay: () => void;
 }) {
-  const [shown, setShown] = useState(false);
+  const installmentValue = value / Math.max(1, installments);
+  if (type === "pix") return <PixBlock amount={value} isPaying={isPaying} onPay={onPay} />;
+  if (type === "cartao") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-md bg-muted/50 p-3 text-sm">
+          <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
+          <p className="text-xs text-muted-foreground">Total {formatCurrency(value)}</p>
+          <span className="mt-2 inline-block rounded px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "#7C3AED15", color: "#7C3AED" }}>
+            Z2Pay — TMB — PIX
+          </span>
+        </div>
+        <CardFields />
+        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
+          {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Pagar {formatCurrency(value)}
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
-      <CustomerFields data={customer} onChange={setCustomer} prefilled={prefilled} />
-      {!shown ? (
-        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={() => setShown(true)}>
-          Gerar QR Code Pix {formatCurrency(line.value)}
-        </Button>
-      ) : (
-        <div className="space-y-3">
-          <div className="mx-auto flex h-48 w-48 items-center justify-center rounded-md border-2 border-dashed border-border bg-muted/40 text-xs text-muted-foreground">
-            QR PIX MOCK
-          </div>
-          <div className="rounded-md border border-border bg-muted/30 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pix copia e cola</p>
-            <code className="block break-all text-xs">{crypto.randomUUID().slice(0, 8)}-pix-mock</code>
-          </div>
-          <Button className="w-full" disabled={isPaying} onClick={() => onPay("pix")}>
-            {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Confirmar pagamento
-          </Button>
-        </div>
-      )}
+      <div className="rounded-md bg-muted/50 p-3 text-sm">
+        <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
+        <p className="text-xs text-muted-foreground">Boleto financiado via TMB — análise rápida</p>
+      </div>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
+        {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+        Gerar boletos {formatCurrency(value)}
+      </Button>
     </div>
   );
 }
@@ -277,54 +313,105 @@ export default function PublicCheckout() {
   const [data, setData] = useState<PaymentLinkRow | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  const [customer, setCustomer] = useState({ name: "", cpf: "", email: "", phone: "" });
+  const [customer, setCustomer] = useState<CustomerData>({ name: "", cpf: "", email: "", phone: "" });
   const [singleFormDialogOpen, setSingleFormDialogOpen] = useState(false);
   const [overrideLine, setOverrideLine] = useState<PaymentLine | null>(null);
-
   const [isPaying, setIsPaying] = useState(false);
-  const [paidMethod, setPaidMethod] = useState<string | null>(null);
+
+  // Flexible state
+  const [flexAmount, setFlexAmount] = useState<number>(0);
+  const [flexMethod, setFlexMethod] = useState<PayType>("pix");
+  const [flexInstallments, setFlexInstallments] = useState<number>(1);
+
+  const loadLink = async () => {
+    if (!linkId) { setNotFound(true); setLoading(false); return; }
+    const { data: row, error } = await supabase
+      .from("payment_links")
+      .select("*")
+      .eq("id", linkId)
+      .maybeSingle();
+    if (error || !row) { setNotFound(true); setLoading(false); return; }
+    const r = row as unknown as PaymentLinkRow;
+    setData(r);
+    setCustomer({
+      name: r.lead_name && r.lead_name !== "Cliente (link de produto)" && r.lead_name !== "Cliente" ? r.lead_name : "",
+      cpf: r.lead_cpf ?? "",
+      email: r.lead_email ?? "",
+      phone: r.lead_phone ?? "",
+    });
+    if (r.mode === "flexible") {
+      const remaining = Number(r.value) - Number(r.paid_amount);
+      setFlexAmount(remaining);
+      const allowed = r.flexible_config?.allowed_methods ?? ["pix"];
+      setFlexMethod(allowed[0] ?? "pix");
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!linkId) { setNotFound(true); setLoading(false); return; }
-      const { data: row, error } = await supabase
-        .from("payment_links")
-        .select("*")
-        .eq("id", linkId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error || !row) {
-        setNotFound(true);
-      } else {
-        const r = row as unknown as PaymentLinkRow;
-        setData(r);
-        setCustomer({
-          name: r.lead_name && r.lead_name !== "Cliente (link de produto)" ? r.lead_name : "",
-          cpf: "",
-          email: r.lead_email ?? "",
-          phone: r.lead_phone ?? "",
-        });
-        if (r.status === "paid") setPaidMethod(r.paid_method ?? "—");
-      }
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    loadLink();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkId]);
 
-  const handlePay = async (method: PayType) => {
+  // ---- ARRANGED payment (single completes the link) ----
+  const handleArrangedPay = async (method: PayType) => {
     if (!data) return;
     setIsPaying(true);
     await new Promise((r) => setTimeout(r, 2000));
     const { error } = await supabase
       .from("payment_links")
-      .update({ status: "paid", paid_method: method, paid_at: new Date().toISOString() })
+      .update({
+        status: "paid",
+        paid_method: method,
+        paid_at: new Date().toISOString(),
+        lead_name: customer.name || data.lead_name,
+        lead_cpf: customer.cpf || data.lead_cpf,
+        lead_email: customer.email || data.lead_email,
+        lead_phone: customer.phone || data.lead_phone,
+      })
       .eq("id", data.id);
     setIsPaying(false);
     if (!error) {
-      setPaidMethod(method);
       setData({ ...data, status: "paid", paid_method: method });
+    } else {
+      toast.error("Falha ao confirmar pagamento");
     }
+  };
+
+  // ---- FLEXIBLE payment (one transaction at a time) ----
+  const handleFlexPay = async () => {
+    if (!data) return;
+    const tx: Transaction = {
+      id: `tx_${crypto.randomUUID().slice(0, 5)}`,
+      method: flexMethod,
+      value: flexAmount,
+      installments: flexMethod === "pix" ? 1 : flexInstallments,
+      status: "paid",
+      paid_at: new Date().toISOString(),
+    };
+    setIsPaying(true);
+    await new Promise((r) => setTimeout(r, 2000));
+    const newPaid = Number(data.paid_amount) + flexAmount;
+    const newStatus: PaymentLinkRow["status"] = newPaid + 0.001 >= Number(data.value) ? "paid" : "partial";
+    const newTxs = [...(data.transactions ?? []), tx];
+    const { error } = await supabase
+      .from("payment_links")
+      .update({
+        transactions: newTxs as unknown as never,
+        paid_amount: newPaid,
+        status: newStatus,
+        paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+        paid_method: newStatus === "paid" ? flexMethod : null,
+        lead_name: customer.name || data.lead_name,
+        lead_cpf: customer.cpf || data.lead_cpf,
+        lead_email: customer.email || data.lead_email,
+        lead_phone: customer.phone || data.lead_phone,
+      })
+      .eq("id", data.id);
+    setIsPaying(false);
+    if (error) { toast.error("Falha ao confirmar pagamento"); return; }
+    toast.success(`Pagamento de ${formatCurrency(flexAmount)} confirmado`);
+    await loadLink();
   };
 
   if (loading) {
@@ -339,64 +426,28 @@ export default function PublicCheckout() {
       </PageShell>
     );
   }
-
   if (notFound || !data) {
     return (
       <PageShell>
-        <StateCard
-          icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />}
-          title="Link não encontrado ou expirado"
-          hint="Se você espera receber um pagamento, peça um novo link ao responsável."
-        />
+        <StateCard icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />} title="Link não encontrado ou expirado" hint="Se você espera receber um pagamento, peça um novo link ao responsável." />
       </PageShell>
     );
   }
+  if (data.status === "expired") return <PageShell><StateCard icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />} title="Este link expirou" /></PageShell>;
+  if (data.status === "cancelled") return <PageShell><StateCard icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />} title="Este link foi cancelado" /></PageShell>;
 
-  if (data.status === "expired") {
-    return <PageShell><StateCard icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />} title="Este link expirou" /></PageShell>;
-  }
-  if (data.status === "cancelled") {
-    return <PageShell><StateCard icon={<AlertCircle className="h-6 w-6 text-muted-foreground" />} title="Este link foi cancelado" /></PageShell>;
-  }
-
-  if (data.status === "paid" || paidMethod) {
-    return (
-      <PageShell>
-        <div className="rounded-2xl border border-border bg-background p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
-            <Check className="h-6 w-6 text-emerald-600" />
-          </div>
-          <p className="text-lg font-semibold text-foreground">Pagamento confirmado</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{formatCurrency(data.value)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            pago via {methodLabel[(paidMethod || data.paid_method || "pix") as PayType] ?? paidMethod}
-          </p>
-          {data.lead_email && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Você receberá um e-mail em <span className="font-medium text-foreground">{data.lead_email}</span> com os próximos passos.
-            </p>
-          )}
-          <Button variant="outline" className="mt-6" onClick={() => { /* mock */ }}>Voltar</Button>
-        </div>
-      </PageShell>
-    );
-  }
-
-  const lines = data.payment_lines ?? [];
-  const isComposite = lines.length >= 2;
+  const consultLabel = data.closer_role || "Consultor(a)";
   const prefilled = {
-    name: !!data.lead_name && data.lead_name !== "Cliente (link de produto)",
+    name: !!data.lead_name && data.lead_name !== "Cliente" && data.lead_name !== "Cliente (link de produto)",
     email: !!data.lead_email,
     phone: !!data.lead_phone,
   };
 
-  return (
-    <PageShell>
-      <div className="rounded-2xl border border-border bg-background p-6 shadow-sm">
-        {/* Offer header */}
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          Cobrança · #{data.id}
-        </p>
+  // Fatura header card (common to both modes)
+  const InvoiceHeader = (
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">FATURA · #{data.id}</p>
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground" style={{ fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" }}>
           {data.description}
         </h2>
@@ -405,91 +456,281 @@ export default function PublicCheckout() {
         </p>
         {data.closer_name && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Closer: {data.closer_initials ?? ""} · {data.closer_name}
+            {consultLabel}: {data.closer_name}
           </p>
         )}
+      </CardContent>
+    </Card>
+  );
 
-        <div className="my-6 h-px bg-border" />
+  // ============================ FLEXIBLE MODE ============================
+  if (data.mode === "flexible") {
+    const cfg = data.flexible_config ?? {
+      min_amount_per_tx: 0, allowed_methods: ["pix"] as PayType[], cartao_max_installments: 12, tmb_max_installments: 12,
+    };
+    const remaining = Math.max(0, Number(data.value) - Number(data.paid_amount));
+    const isPaid = data.status === "paid" || remaining <= 0.001;
 
-        {/* Payment area */}
-        {overrideLine ? (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Pagar com {methodLabel[overrideLine.type]}</h3>
-            <MethodForm
-              line={overrideLine}
-              customer={customer}
-              setCustomer={setCustomer}
-              prefilled={prefilled}
-              onPay={handlePay}
-              isPaying={isPaying}
-            />
-            <button
-              className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-              onClick={() => setOverrideLine(null)}
-              type="button"
-            >
-              ← voltar ao plano sugerido
-            </button>
-          </div>
-        ) : !isComposite ? (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">
-              Pagar com {lines[0] ? methodLabel[lines[0].type] : "Pix"}
-            </h3>
-            {lines[0] && (
-              <MethodForm
-                line={lines[0]}
-                customer={customer}
-                setCustomer={setCustomer}
-                prefilled={prefilled}
-                onPay={handlePay}
-                isPaying={isPaying}
-              />
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 rounded-md border border-violet-500/20 bg-violet-500/5 p-3 text-sm">
-              <p className="font-medium text-foreground">💡 Plano sugerido pelo Closer</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {lines.map((l, i) => `${i === 0 ? "Entrada em" : "Saldo em"} ${methodLabel[l.type]}${l.installments > 1 ? ` ${l.installments}x` : ""}`).join(" → ")}
-              </p>
+    const flexError =
+      flexAmount < cfg.min_amount_per_tx
+        ? `Valor mínimo por transação: ${formatCurrency(cfg.min_amount_per_tx)}`
+        : flexAmount > remaining
+          ? `Valor máximo: ${formatCurrency(remaining)}`
+          : null;
+
+    const maxInst = flexMethod === "cartao" ? cfg.cartao_max_installments : flexMethod === "tmb" ? cfg.tmb_max_installments : 1;
+
+    return (
+      <PageShell>
+        {InvoiceHeader}
+
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between items-baseline">
+              <span className="text-sm text-muted-foreground">Total da fatura</span>
+              <span className="font-semibold tabular-nums">{formatCurrency(Number(data.value))}</span>
             </div>
-            <Accordion type="single" collapsible defaultValue={lines[0]?.id} className="space-y-2">
-              {lines.map((line, idx) => (
-                <AccordionItem key={line.id} value={line.id} className="rounded-md border border-border px-3">
-                  <AccordionTrigger className="text-sm">
+            <div className="flex justify-between items-baseline">
+              <span className="text-sm text-muted-foreground">Pago até agora</span>
+              <span className="font-semibold tabular-nums text-emerald-600">{formatCurrency(Number(data.paid_amount))}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between items-baseline">
+              <span className="text-base font-semibold">Saldo a pagar</span>
+              <span className={cn("text-2xl font-bold tabular-nums", remaining > 0 ? "text-foreground" : "text-emerald-600")}>
+                {formatCurrency(remaining)}
+              </span>
+            </div>
+            <Progress value={(Number(data.paid_amount) / Number(data.value)) * 100} className="h-1.5" />
+            {cfg.instruction && (
+              <p className="text-xs text-muted-foreground italic pt-2">💬 {cfg.instruction}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <CustomerCard data={customer} onChange={setCustomer} prefilled={prefilled} />
+
+        {(data.transactions?.length ?? 0) > 0 && (
+          <Card>
+            <CardContent className="p-5 space-y-2">
+              <h3 className="text-sm font-semibold">Histórico de pagamentos</h3>
+              <div className="space-y-1.5 text-sm">
+                {data.transactions.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Etapa {idx + 1}</span>
-                      <span>{methodIcon[line.type]} {methodLabel[line.type]}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {line.installments > 1 ? `${line.installments}x ` : ""}{formatCurrency(line.value / Math.max(1, line.installments))}
+                      <span>{methodIcon[t.method]}</span>
+                      <span className="font-medium tabular-nums">{formatCurrency(t.value)}</span>
+                      <span className="text-muted-foreground">
+                        via {methodLabel[t.method]}{t.installments > 1 ? ` ${t.installments}x` : ""}
                       </span>
                     </span>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <MethodForm
-                      line={line}
-                      customer={customer}
-                      setCustomer={setCustomer}
-                      prefilled={prefilled}
-                      onPay={handlePay}
-                      isPaying={isPaying}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-            <button
-              type="button"
-              className="mt-4 text-xs text-muted-foreground underline-offset-4 hover:underline"
-              onClick={() => setSingleFormDialogOpen(true)}
-            >
-              Prefiro pagar tudo em uma forma só
-            </button>
-          </>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {new Date(t.paid_at).toLocaleDateString("pt-BR")} às {new Date(t.paid_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
-      </div>
+
+        {isPaid ? (
+          <Card className="border-emerald-500/30 bg-emerald-500/5">
+            <CardContent className="p-8 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20">
+                <Check className="h-6 w-6 text-emerald-600" />
+              </div>
+              <p className="text-lg font-semibold">Fatura quitada!</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(Number(data.value))} pagos em {data.transactions?.length ?? 0} transaç{(data.transactions?.length ?? 0) === 1 ? "ão" : "ões"}.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-5 space-y-4">
+              <h3 className="text-sm font-semibold">Realizar novo pagamento</h3>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Valor a pagar agora (R$)</Label>
+                <Input
+                  type="number"
+                  value={flexAmount || ""}
+                  onChange={(e) => setFlexAmount(Number(e.target.value))}
+                />
+                {flexError && <p className="text-xs text-red-600">{flexError}</p>}
+                <p className="text-[11px] text-muted-foreground">
+                  Mínimo {formatCurrency(cfg.min_amount_per_tx)} · Máximo {formatCurrency(remaining)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Meio de pagamento</Label>
+                <Tabs value={flexMethod} onValueChange={(v) => { setFlexMethod(v as PayType); setFlexInstallments(1); }}>
+                  <TabsList
+                    className="grid w-full"
+                    style={{ gridTemplateColumns: `repeat(${cfg.allowed_methods.length}, minmax(0, 1fr))` }}
+                  >
+                    {cfg.allowed_methods.map((m) => (
+                      <TabsTrigger key={m} value={m}>{methodIcon[m]} {methodLabel[m]}</TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {(flexMethod === "cartao" || flexMethod === "tmb") && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Parcelas</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={flexInstallments}
+                    onChange={(e) => setFlexInstallments(Number(e.target.value))}
+                  >
+                    {Array.from({ length: maxInst }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}x de {formatCurrency(flexAmount / n)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {flexMethod === "cartao" && <CardFields />}
+              {flexMethod === "pix" && (
+                <PixBlock amount={flexAmount} isPaying={isPaying} onPay={handleFlexPay} />
+              )}
+
+              {flexMethod !== "pix" && (
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={!!flexError || isPaying || flexAmount <= 0}
+                  onClick={handleFlexPay}
+                >
+                  {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Pagar {formatCurrency(flexAmount)}
+                </Button>
+              )}
+              {flexMethod === "pix" && flexError && (
+                <p className="text-xs text-red-600 text-center">Ajuste o valor para continuar.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </PageShell>
+    );
+  }
+
+  // ============================ ARRANGED MODE ============================
+  if (data.status === "paid") {
+    return (
+      <PageShell>
+        <div className="rounded-2xl border border-border bg-background p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
+            <Check className="h-6 w-6 text-emerald-600" />
+          </div>
+          <p className="text-lg font-semibold text-foreground">Pagamento confirmado</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">{formatCurrency(Number(data.value))}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            pago via {methodLabel[(data.paid_method || "pix") as PayType] ?? data.paid_method}
+          </p>
+          {data.lead_email && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Você receberá um e-mail em <span className="font-medium text-foreground">{data.lead_email}</span> com os próximos passos.
+            </p>
+          )}
+        </div>
+      </PageShell>
+    );
+  }
+
+  const lines = data.payment_lines ?? [];
+  const isComposite = lines.length >= 2;
+
+  return (
+    <PageShell>
+      {InvoiceHeader}
+
+      {isComposite && !overrideLine && (
+        <Card className="border-violet-500/20 bg-violet-500/5">
+          <CardContent className="p-4 text-sm">
+            <p className="font-medium text-foreground">💡 Plano sugerido pelo Consultor</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {lines.map((l, i) => `${i === 0 ? "Entrada em" : "Saldo em"} ${methodLabel[l.type]}${l.installments > 1 ? ` ${l.installments}x` : ""}`).join(" → ")}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <CustomerCard data={customer} onChange={setCustomer} prefilled={prefilled} />
+
+      <Card>
+        <CardContent className="p-5">
+          {overrideLine ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Pagar com {methodLabel[overrideLine.type]}</h3>
+              <MethodFormBody
+                type={overrideLine.type}
+                value={overrideLine.value}
+                installments={overrideLine.installments}
+                isPaying={isPaying}
+                onPay={() => handleArrangedPay(overrideLine.type)}
+              />
+              <button
+                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => setOverrideLine(null)}
+                type="button"
+              >
+                ← voltar ao plano sugerido
+              </button>
+            </div>
+          ) : !isComposite ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Pagar com {lines[0] ? methodLabel[lines[0].type] : "Pix"}</h3>
+              {lines[0] && (
+                <MethodFormBody
+                  type={lines[0].type}
+                  value={lines[0].value}
+                  installments={lines[0].installments}
+                  isPaying={isPaying}
+                  onPay={() => handleArrangedPay(lines[0].type)}
+                />
+              )}
+            </div>
+          ) : (
+            <>
+              <Accordion type="single" collapsible defaultValue={lines[0]?.id} className="space-y-2">
+                {lines.map((line, idx) => (
+                  <AccordionItem key={line.id} value={line.id} className="rounded-md border border-border px-3">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Etapa {idx + 1}</span>
+                        <span>{methodIcon[line.type]} {methodLabel[line.type]}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {line.installments > 1 ? `${line.installments}x ` : ""}{formatCurrency(line.value / Math.max(1, line.installments))}
+                        </span>
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <MethodFormBody
+                        type={line.type}
+                        value={line.value}
+                        installments={line.installments}
+                        isPaying={isPaying}
+                        onPay={() => handleArrangedPay(line.type)}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+              <button
+                type="button"
+                className="mt-4 text-xs text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => setSingleFormDialogOpen(true)}
+              >
+                Prefiro pagar tudo em uma forma só
+              </button>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={singleFormDialogOpen} onOpenChange={setSingleFormDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
