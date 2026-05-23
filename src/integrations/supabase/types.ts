@@ -778,7 +778,49 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_public_payment_link: {
+        Args: { p_id: string }
+        Returns: {
+          closer_initials: string
+          closer_name: string
+          closer_role: string
+          description: string
+          flexible_config: Json
+          id: string
+          lead_name: string
+          mode: string
+          paid_amount: number
+          paid_method: string
+          payment_lines: Json
+          status: string
+          transactions: Json
+          value: number
+        }[]
+      }
+      mark_payment_link_paid: {
+        Args: {
+          p_customer_cpf: string
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_id: string
+          p_method: string
+        }
+        Returns: boolean
+      }
+      record_payment_link_transaction: {
+        Args: {
+          p_customer_cpf: string
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_id: string
+          p_installments: number
+          p_method: string
+          p_value: number
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
