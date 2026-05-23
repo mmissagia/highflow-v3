@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -567,7 +567,10 @@ export default function PublicCheckout() {
               <div className="space-y-2">
                 <Label className="text-xs">Meio de pagamento</Label>
                 <Tabs value={flexMethod} onValueChange={(v) => { setFlexMethod(v as PayType); setFlexInstallments(1); }}>
-                  <TabsList className={cn("grid w-full", `grid-cols-${cfg.allowed_methods.length}`)}>
+                  <TabsList
+                    className="grid w-full"
+                    style={{ gridTemplateColumns: `repeat(${cfg.allowed_methods.length}, minmax(0, 1fr))` }}
+                  >
                     {cfg.allowed_methods.map((m) => (
                       <TabsTrigger key={m} value={m}>{methodIcon[m]} {methodLabel[m]}</TabsTrigger>
                     ))}
