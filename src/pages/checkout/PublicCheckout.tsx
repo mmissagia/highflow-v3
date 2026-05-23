@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy, Zap } from "lucide-react";
+import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy, Zap, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
