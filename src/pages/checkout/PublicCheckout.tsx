@@ -820,38 +820,14 @@ export default function PublicCheckout() {
   if (data.status === "paid") {
     return (
       <PageShell>
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardContent className="space-y-4 p-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
-              <Check className="h-8 w-8 text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">Fatura quitada!</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatCurrency(totalValue)} pagos em {totalLines || 1} {(totalLines || 1) === 1 ? "etapa" : "etapas"}.
-              </p>
-            </div>
-            {arrangedLines.length > 0 && (
-              <>
-                <Separator className="my-2" />
-                <div className="space-y-2 text-left">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Resumo</p>
-                  {arrangedLines.map((line, i) => (
-                    <div key={line.id} className="flex justify-between text-sm">
-                      <span>Etapa {i + 1} — {methodLabel[line.type]}</span>
-                      <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {customer.email && (
-              <p className="pt-2 text-xs text-muted-foreground">
-                Você receberá um e-mail em {customer.email} com os próximos passos.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <QuittanceCard
+          data={data}
+          email={customer.email}
+          totalUnits={totalLines || 1}
+          unitSingular="etapa"
+          unitPlural="etapas"
+          lines={arrangedLines}
+        />
       </PageShell>
     );
   }
