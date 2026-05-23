@@ -444,6 +444,22 @@ export function NovaCobrancaDrawer({
               )}
             </div>
 
+            {/* Mode tabs */}
+            <div className="space-y-2">
+              <Label>Tipo de cobrança</Label>
+              <Tabs value={mode} onValueChange={(v) => setMode(v as "arranged" | "flexible")}>
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="arranged">Arranjo composto</TabsTrigger>
+                  <TabsTrigger value="flexible">Pagamento flexível</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-xs text-muted-foreground">
+                {mode === "arranged"
+                  ? "Você define a sequência de pagamentos. O cliente paga em ordem."
+                  : "O cliente decide quanto pagar agora e em qual meio, em uma ou mais transações."}
+              </p>
+            </div>
+
             {/* Product */}
             <div className="space-y-2">
               <Label>Produto / Descrição</Label>
