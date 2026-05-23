@@ -273,7 +273,9 @@ export function NovaCobrancaDrawer({
       lead_phone: clientPhone || null,
       description: desc || "Cobrança avulsa",
       value: finalValue,
-      payment_lines: (mode === "arranged" ? paymentLines : []) as unknown as never,
+      payment_lines: (mode === "arranged"
+        ? paymentLines.map((l) => ({ ...l, paid: false, paid_at: null }))
+        : []) as unknown as never,
       mode,
       flexible_config: flexibleConfig as unknown as never,
       closer_name: closer.name,
