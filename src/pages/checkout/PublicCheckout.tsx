@@ -395,10 +395,21 @@ function PixBlock({
   amount, isPaying, onPay,
 }: { amount: number; isPaying: boolean; onPay: () => void }) {
   const [code] = useState(() => Array.from({ length: 80 }, () => "abcdef0123456789"[Math.floor(Math.random() * 16)]).join(""));
+  const filled = new Set([0,2,3,5,7,8,11,14,17,19,22,25,28,31,33,36,39,42,45,48,51,54,57,60,63]);
   return (
     <div className="space-y-3">
-      <div className="mx-auto flex h-[220px] w-[220px] items-center justify-center rounded-md border border-border bg-white text-xs text-muted-foreground font-mono">
-        QR PIX MOCK
+      <div className="flex flex-col items-center gap-2 py-2">
+        <div className="relative flex h-[220px] w-[220px] items-center justify-center rounded-lg border-2 border-border bg-white">
+          <div className="grid h-full w-full grid-cols-8 gap-[2px] p-3">
+            {Array.from({ length: 64 }).map((_, i) => (
+              <div key={i} className={cn("aspect-square", filled.has(i) ? "bg-black" : "bg-transparent")} />
+            ))}
+          </div>
+          <div className="absolute left-2 top-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+          <div className="absolute bottom-2 left-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+        </div>
+        <p className="font-mono text-[10px] text-muted-foreground">QR PIX MOCK</p>
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Copia e cola Pix</Label>
