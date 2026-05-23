@@ -607,9 +607,9 @@ export default function PublicCheckout() {
           <p className="mt-1 text-sm text-muted-foreground">
             pago via {methodLabel[(data.paid_method || "pix") as PayType] ?? data.paid_method}
           </p>
-          {data.lead_email && (
+          {customer.email && (
             <p className="mt-4 text-sm text-muted-foreground">
-              Você receberá um e-mail em <span className="font-medium text-foreground">{data.lead_email}</span> com os próximos passos.
+              Você receberá um e-mail em <span className="font-medium text-foreground">{customer.email}</span> com os próximos passos.
             </p>
           )}
         </div>
