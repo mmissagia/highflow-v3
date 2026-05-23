@@ -839,9 +839,9 @@ export default function PublicCheckout() {
                 </div>
               </>
             )}
-            {(customer.email || data.lead_email) && (
+            {customer.email && (
               <p className="pt-2 text-xs text-muted-foreground">
-                Você receberá um e-mail em {customer.email || data.lead_email} com os próximos passos.
+                Você receberá um e-mail em {customer.email} com os próximos passos.
               </p>
             )}
           </CardContent>
