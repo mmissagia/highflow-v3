@@ -797,6 +797,18 @@ export type Database = {
           value: number
         }[]
       }
+      mark_payment_line_paid: {
+        Args: {
+          p_customer_cpf: string
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_id: string
+          p_line_id: string
+          p_method: string
+        }
+        Returns: boolean
+      }
       mark_payment_link_paid: {
         Args: {
           p_customer_cpf: string

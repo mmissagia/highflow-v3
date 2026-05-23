@@ -16,6 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -27,6 +29,8 @@ interface PaymentLine {
   value: number;
   installments: number;
   firstDue?: string;
+  paid?: boolean;
+  paid_at?: string | null;
 }
 
 interface FlexibleConfig {
@@ -391,10 +395,21 @@ function PixBlock({
   amount, isPaying, onPay,
 }: { amount: number; isPaying: boolean; onPay: () => void }) {
   const [code] = useState(() => Array.from({ length: 80 }, () => "abcdef0123456789"[Math.floor(Math.random() * 16)]).join(""));
+  const filled = new Set([0,2,3,5,7,8,11,14,17,19,22,25,28,31,33,36,39,42,45,48,51,54,57,60,63]);
   return (
     <div className="space-y-3">
-      <div className="mx-auto flex h-[220px] w-[220px] items-center justify-center rounded-md border border-border bg-white text-xs text-muted-foreground font-mono">
-        QR PIX MOCK
+      <div className="flex flex-col items-center gap-2 py-2">
+        <div className="relative flex h-[220px] w-[220px] items-center justify-center rounded-lg border-2 border-border bg-white">
+          <div className="grid h-full w-full grid-cols-8 gap-[2px] p-3">
+            {Array.from({ length: 64 }).map((_, i) => (
+              <div key={i} className={cn("aspect-square", filled.has(i) ? "bg-black" : "bg-transparent")} />
+            ))}
+          </div>
+          <div className="absolute left-2 top-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+          <div className="absolute bottom-2 left-2 h-8 w-8 rounded-sm border-4 border-black bg-white" />
+        </div>
+        <p className="font-mono text-[10px] text-muted-foreground">QR PIX MOCK</p>
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Copia e cola Pix</Label>
@@ -420,6 +435,7 @@ function MethodFormBody({
   type: PayType; value: number; installments: number; isPaying: boolean; onPay: () => void; leadName: string;
 }) {
   const installmentValue = value / Math.max(1, installments);
+  const [tmbTermsAccepted, setTmbTermsAccepted] = useState(false);
   if (type === "pix") return <PixBlock amount={value} isPaying={isPaying} onPay={onPay} />;
   if (type === "cartao") {
     return (
@@ -427,9 +443,6 @@ function MethodFormBody({
         <div className="rounded-md bg-muted/50 p-3 text-sm">
           <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
           <p className="text-xs text-muted-foreground">Total {formatCurrency(value)}</p>
-          <span className="mt-2 inline-block rounded px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "#7C3AED15", color: "#7C3AED" }}>
-            Z2Pay — TMB — PIX
-          </span>
         </div>
         <Z2CartCardFields
           leadName={leadName}
@@ -446,7 +459,20 @@ function MethodFormBody({
         <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
         <p className="text-xs text-muted-foreground">Boleto financiado via TMB — análise rápida</p>
       </div>
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
+      <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3">
+        <Checkbox
+          id={`tmb-terms-${value}`}
+          checked={tmbTermsAccepted}
+          onCheckedChange={(v) => setTmbTermsAccepted(!!v)}
+          className="mt-0.5"
+        />
+        <label htmlFor={`tmb-terms-${value}`} className="cursor-pointer text-xs leading-relaxed">
+          Li e concordo com os <a href="#" className="underline">termos do financiamento via TMB</a>,
+          incluindo as condições de parcelamento, taxa de juros, política de cobrança e
+          consequências em caso de inadimplência.
+        </label>
+      </div>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying || !tmbTermsAccepted} onClick={onPay}>
         {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         Gerar boletos {formatCurrency(value)}
       </Button>
@@ -464,6 +490,7 @@ export default function PublicCheckout() {
   const [singleFormDialogOpen, setSingleFormDialogOpen] = useState(false);
   const [overrideLine, setOverrideLine] = useState<PaymentLine | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [openAccordionId, setOpenAccordionId] = useState<string | undefined>(undefined);
 
   // Flexible state
   const [flexAmount, setFlexAmount] = useState<number>(0);
@@ -498,8 +525,36 @@ export default function PublicCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkId]);
 
-  // ---- ARRANGED payment (single completes the link) ----
-  const handleArrangedPay = async (method: PayType) => {
+  // ---- ARRANGED payment: confirm one line at a time ----
+  const handleLineConfirm = async (lineId: string, method: PayType, lineValue: number) => {
+    if (!data) return;
+    setIsPaying(true);
+    await new Promise((r) => setTimeout(r, 2000));
+    const { data: ok, error } = await (supabase as any).rpc("mark_payment_line_paid", {
+      p_id: data.id,
+      p_line_id: lineId,
+      p_method: method,
+      p_customer_name: customer.name,
+      p_customer_cpf: customer.cpf,
+      p_customer_email: customer.email,
+      p_customer_phone: customer.phone,
+    });
+    setIsPaying(false);
+    if (error || !ok) { toast.error("Falha ao confirmar pagamento"); return; }
+    toast.success(`Pagamento de ${formatCurrency(lineValue)} via ${methodLabel[method]} confirmado`);
+    await loadLink();
+    // auto-open next unpaid line
+    setTimeout(() => {
+      setData((curr) => {
+        if (!curr) return curr;
+        const next = (curr.payment_lines ?? []).find((l) => !l.paid);
+        setOpenAccordionId(next?.id);
+        return curr;
+      });
+    }, 0);
+  };
+  // override (single form) handler — confirms a synthetic single line
+  const handleOverridePay = async (method: PayType) => {
     if (!data) return;
     setIsPaying(true);
     await new Promise((r) => setTimeout(r, 2000));
@@ -512,11 +567,8 @@ export default function PublicCheckout() {
       p_customer_phone: customer.phone,
     });
     setIsPaying(false);
-    if (!error && ok) {
-      setData({ ...data, status: "paid", paid_method: method });
-    } else {
-      toast.error("Falha ao confirmar pagamento");
-    }
+    if (!error && ok) setData({ ...data, status: "paid", paid_method: method });
+    else toast.error("Falha ao confirmar pagamento");
   };
 
   // ---- FLEXIBLE payment (one transaction at a time) ----
@@ -752,30 +804,58 @@ export default function PublicCheckout() {
   }
 
   // ============================ ARRANGED MODE ============================
+  const arrangedLines = data.payment_lines ?? [];
+  const totalLines = arrangedLines.length;
+  const paidLinesCount = arrangedLines.filter((l) => l.paid).length;
+  const paidAmount = arrangedLines.filter((l) => l.paid).reduce((s, l) => s + Number(l.value), 0);
+  const totalValue = Number(data.value);
+  const remaining = Math.max(0, totalValue - paidAmount);
+
   if (data.status === "paid") {
     return (
       <PageShell>
-        <div className="rounded-2xl border border-border bg-background p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
-            <Check className="h-6 w-6 text-emerald-600" />
-          </div>
-          <p className="text-lg font-semibold text-foreground">Pagamento confirmado</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{formatCurrency(Number(data.value))}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            pago via {methodLabel[(data.paid_method || "pix") as PayType] ?? data.paid_method}
-          </p>
-          {customer.email && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Você receberá um e-mail em <span className="font-medium text-foreground">{customer.email}</span> com os próximos passos.
-            </p>
-          )}
-        </div>
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="space-y-4 p-8 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
+              <Check className="h-8 w-8 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">Fatura quitada!</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(totalValue)} pagos em {totalLines || 1} {(totalLines || 1) === 1 ? "etapa" : "etapas"}.
+              </p>
+            </div>
+            {arrangedLines.length > 0 && (
+              <>
+                <Separator className="my-2" />
+                <div className="space-y-2 text-left">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Resumo</p>
+                  {arrangedLines.map((line, i) => (
+                    <div key={line.id} className="flex justify-between text-sm">
+                      <span>Etapa {i + 1} — {methodLabel[line.type]}</span>
+                      <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {customer.email && (
+              <p className="pt-2 text-xs text-muted-foreground">
+                Você receberá um e-mail em {customer.email} com os próximos passos.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </PageShell>
     );
   }
 
-  const lines = data.payment_lines ?? [];
+  const lines = arrangedLines;
   const isComposite = lines.length >= 2;
+  // ensure an accordion item is open on first render / after data reloads
+  const desiredOpen = openAccordionId
+    ?? lines.find((l) => !l.paid)?.id
+    ?? lines[0]?.id;
 
   return (
     <PageShell>
@@ -794,6 +874,24 @@ export default function PublicCheckout() {
 
       <CustomerCard data={customer} onChange={setCustomer} prefilled={prefilled} />
 
+      {isComposite && !overrideLine && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="text-sm text-muted-foreground">Saldo desta fatura</span>
+              <span className="text-xs text-muted-foreground">
+                {paidLinesCount} de {totalLines} etapas pagas
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xl font-bold tabular-nums">{formatCurrency(remaining)}</span>
+              <span className="text-xs text-muted-foreground">de {formatCurrency(totalValue)}</span>
+            </div>
+            <Progress value={(paidAmount / Math.max(1, totalValue)) * 100} className="mt-2 h-1" />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-5">
           {overrideLine ? (
@@ -804,7 +902,7 @@ export default function PublicCheckout() {
                 value={overrideLine.value}
                 installments={overrideLine.installments}
                 isPaying={isPaying}
-                onPay={() => handleArrangedPay(overrideLine.type)}
+                onPay={() => handleOverridePay(overrideLine.type)}
                 leadName={customer.name || data.lead_name}
               />
               <button
@@ -824,34 +922,62 @@ export default function PublicCheckout() {
                   value={lines[0].value}
                   installments={lines[0].installments}
                   isPaying={isPaying}
-                  onPay={() => handleArrangedPay(lines[0].type)}
+                  onPay={() => handleLineConfirm(lines[0].id, lines[0].type, Number(lines[0].value))}
                   leadName={customer.name || data.lead_name}
                 />
               )}
             </div>
           ) : (
             <>
-              <Accordion type="single" collapsible defaultValue={lines[0]?.id} className="space-y-2">
+              <Accordion
+                type="single"
+                collapsible
+                value={desiredOpen}
+                onValueChange={(v) => setOpenAccordionId(v || undefined)}
+                className="space-y-2"
+              >
                 {lines.map((line, idx) => (
-                  <AccordionItem key={line.id} value={line.id} className="rounded-md border border-border px-3">
+                  <AccordionItem
+                    key={line.id}
+                    value={line.id}
+                    className={cn(
+                      "rounded-md border px-3 transition-all",
+                      line.paid
+                        ? "animate-pulse-slow border-emerald-500/40"
+                        : "border-border"
+                    )}
+                  >
                     <AccordionTrigger className="text-sm">
-                      <span className="flex items-center gap-2">
+                      <div className="flex w-full items-center gap-2 pr-2">
                         <span className="text-xs text-muted-foreground">Etapa {idx + 1}</span>
                         <span>{methodIcon[line.type]} {methodLabel[line.type]}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {line.installments > 1 ? `${line.installments}x ` : ""}{formatCurrency(line.value / Math.max(1, line.installments))}
+                        <span className="ml-auto text-sm font-semibold tabular-nums">
+                          {formatCurrency(Number(line.value))}
                         </span>
-                      </span>
+                        {line.paid && (
+                          <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">
+                            <Check className="h-3 w-3" /> Pago
+                          </Badge>
+                        )}
+                      </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <MethodFormBody
-                        type={line.type}
-                        value={line.value}
-                        installments={line.installments}
-                        isPaying={isPaying}
-                        onPay={() => handleArrangedPay(line.type)}
-                        leadName={customer.name || data.lead_name}
-                      />
+                      {line.paid ? (
+                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700">
+                          <Check className="mr-1 inline h-4 w-4" />
+                          Pagamento confirmado
+                          {line.paid_at ? ` em ${new Date(line.paid_at).toLocaleDateString("pt-BR")}` : ""}
+                        </div>
+                      ) : (
+                        <MethodFormBody
+                          type={line.type}
+                          value={line.value}
+                          installments={line.installments}
+                          isPaying={isPaying}
+                          onPay={() => handleLineConfirm(line.id, line.type, Number(line.value))}
+                          leadName={customer.name || data.lead_name}
+                        />
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 ))}
