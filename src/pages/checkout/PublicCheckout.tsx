@@ -804,30 +804,58 @@ export default function PublicCheckout() {
   }
 
   // ============================ ARRANGED MODE ============================
+  const arrangedLines = data.payment_lines ?? [];
+  const totalLines = arrangedLines.length;
+  const paidLinesCount = arrangedLines.filter((l) => l.paid).length;
+  const paidAmount = arrangedLines.filter((l) => l.paid).reduce((s, l) => s + Number(l.value), 0);
+  const totalValue = Number(data.value);
+  const remaining = Math.max(0, totalValue - paidAmount);
+
   if (data.status === "paid") {
     return (
       <PageShell>
-        <div className="rounded-2xl border border-border bg-background p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
-            <Check className="h-6 w-6 text-emerald-600" />
-          </div>
-          <p className="text-lg font-semibold text-foreground">Pagamento confirmado</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{formatCurrency(Number(data.value))}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            pago via {methodLabel[(data.paid_method || "pix") as PayType] ?? data.paid_method}
-          </p>
-          {customer.email && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Você receberá um e-mail em <span className="font-medium text-foreground">{customer.email}</span> com os próximos passos.
-            </p>
-          )}
-        </div>
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="space-y-4 p-8 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
+              <Check className="h-8 w-8 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">Fatura quitada!</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(totalValue)} pagos em {totalLines || 1} {(totalLines || 1) === 1 ? "etapa" : "etapas"}.
+              </p>
+            </div>
+            {arrangedLines.length > 0 && (
+              <>
+                <Separator className="my-2" />
+                <div className="space-y-2 text-left">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Resumo</p>
+                  {arrangedLines.map((line, i) => (
+                    <div key={line.id} className="flex justify-between text-sm">
+                      <span>Etapa {i + 1} — {methodLabel[line.type]}</span>
+                      <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {(customer.email || data.lead_email) && (
+              <p className="pt-2 text-xs text-muted-foreground">
+                Você receberá um e-mail em {customer.email || data.lead_email} com os próximos passos.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </PageShell>
     );
   }
 
-  const lines = data.payment_lines ?? [];
+  const lines = arrangedLines;
   const isComposite = lines.length >= 2;
+  // ensure an accordion item is open on first render / after data reloads
+  const desiredOpen = openAccordionId
+    ?? lines.find((l) => !l.paid)?.id
+    ?? lines[0]?.id;
 
   return (
     <PageShell>
@@ -846,6 +874,24 @@ export default function PublicCheckout() {
 
       <CustomerCard data={customer} onChange={setCustomer} prefilled={prefilled} />
 
+      {isComposite && !overrideLine && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="text-sm text-muted-foreground">Saldo desta fatura</span>
+              <span className="text-xs text-muted-foreground">
+                {paidLinesCount} de {totalLines} etapas pagas
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xl font-bold tabular-nums">{formatCurrency(remaining)}</span>
+              <span className="text-xs text-muted-foreground">de {formatCurrency(totalValue)}</span>
+            </div>
+            <Progress value={(paidAmount / Math.max(1, totalValue)) * 100} className="mt-2 h-1" />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-5">
           {overrideLine ? (
@@ -856,7 +902,7 @@ export default function PublicCheckout() {
                 value={overrideLine.value}
                 installments={overrideLine.installments}
                 isPaying={isPaying}
-                onPay={() => handleArrangedPay(overrideLine.type)}
+                onPay={() => handleOverridePay(overrideLine.type)}
                 leadName={customer.name || data.lead_name}
               />
               <button
@@ -876,34 +922,62 @@ export default function PublicCheckout() {
                   value={lines[0].value}
                   installments={lines[0].installments}
                   isPaying={isPaying}
-                  onPay={() => handleArrangedPay(lines[0].type)}
+                  onPay={() => handleLineConfirm(lines[0].id, lines[0].type, Number(lines[0].value))}
                   leadName={customer.name || data.lead_name}
                 />
               )}
             </div>
           ) : (
             <>
-              <Accordion type="single" collapsible defaultValue={lines[0]?.id} className="space-y-2">
+              <Accordion
+                type="single"
+                collapsible
+                value={desiredOpen}
+                onValueChange={(v) => setOpenAccordionId(v || undefined)}
+                className="space-y-2"
+              >
                 {lines.map((line, idx) => (
-                  <AccordionItem key={line.id} value={line.id} className="rounded-md border border-border px-3">
+                  <AccordionItem
+                    key={line.id}
+                    value={line.id}
+                    className={cn(
+                      "rounded-md border px-3 transition-all",
+                      line.paid
+                        ? "animate-pulse-slow border-emerald-500/40"
+                        : "border-border"
+                    )}
+                  >
                     <AccordionTrigger className="text-sm">
-                      <span className="flex items-center gap-2">
+                      <div className="flex w-full items-center gap-2 pr-2">
                         <span className="text-xs text-muted-foreground">Etapa {idx + 1}</span>
                         <span>{methodIcon[line.type]} {methodLabel[line.type]}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {line.installments > 1 ? `${line.installments}x ` : ""}{formatCurrency(line.value / Math.max(1, line.installments))}
+                        <span className="ml-auto text-sm font-semibold tabular-nums">
+                          {formatCurrency(Number(line.value))}
                         </span>
-                      </span>
+                        {line.paid && (
+                          <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">
+                            <Check className="h-3 w-3" /> Pago
+                          </Badge>
+                        )}
+                      </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <MethodFormBody
-                        type={line.type}
-                        value={line.value}
-                        installments={line.installments}
-                        isPaying={isPaying}
-                        onPay={() => handleArrangedPay(line.type)}
-                        leadName={customer.name || data.lead_name}
-                      />
+                      {line.paid ? (
+                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700">
+                          <Check className="mr-1 inline h-4 w-4" />
+                          Pagamento confirmado
+                          {line.paid_at ? ` em ${new Date(line.paid_at).toLocaleDateString("pt-BR")}` : ""}
+                        </div>
+                      ) : (
+                        <MethodFormBody
+                          type={line.type}
+                          value={line.value}
+                          installments={line.installments}
+                          isPaying={isPaying}
+                          onPay={() => handleLineConfirm(line.id, line.type, Number(line.value))}
+                          leadName={customer.name || data.lead_name}
+                        />
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 ))}
