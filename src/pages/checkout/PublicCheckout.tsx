@@ -723,17 +723,13 @@ export default function PublicCheckout() {
         )}
 
         {isPaid ? (
-          <Card className="border-emerald-500/30 bg-emerald-500/5">
-            <CardContent className="p-8 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20">
-                <Check className="h-6 w-6 text-emerald-600" />
-              </div>
-              <p className="text-lg font-semibold">Fatura quitada!</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatCurrency(Number(data.value))} pagos em {data.transactions?.length ?? 0} transaç{(data.transactions?.length ?? 0) === 1 ? "ão" : "ões"}.
-              </p>
-            </CardContent>
-          </Card>
+          <QuittanceCard
+            data={data}
+            email={customer.email}
+            totalUnits={data.transactions?.length ?? 0}
+            unitSingular="transação"
+            unitPlural="transações"
+          />
         ) : (
           <Card>
             <CardContent className="p-5 space-y-4">
