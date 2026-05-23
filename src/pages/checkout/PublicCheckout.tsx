@@ -16,6 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -27,6 +29,8 @@ interface PaymentLine {
   value: number;
   installments: number;
   firstDue?: string;
+  paid?: boolean;
+  paid_at?: string | null;
 }
 
 interface FlexibleConfig {
