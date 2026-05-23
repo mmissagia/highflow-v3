@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy } from "lucide-react";
+import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,28 +212,177 @@ function CustomerCard({
   );
 }
 
-function CardFields() {
-  const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
+const Z2CART_MOCK_CARDS = [
+  { id: "card_1", brand: "visa", last4: "4242", expiry: "12/28" },
+  { id: "card_2", brand: "mastercard", last4: "8901", expiry: "09/27" },
+];
+
+function Z2CartCardFields({
+  leadName, isPaying, submitLabel, onSubmit,
+}: {
+  leadName: string;
+  isPaying: boolean;
+  submitLabel: string;
+  onSubmit: () => void;
+}) {
+  const [phase, setPhase] = useState<"loading" | "ready">("loading");
+  const [mode, setMode] = useState<"z2cart" | "manual">("z2cart");
+  const [selectedId, setSelectedId] = useState<string>(Z2CART_MOCK_CARDS[0].id);
+  const [cvv, setCvv] = useState("");
+  const [manual, setManual] = useState({ number: "", expiry: "", cvv: "", name: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhase("loading");
+    const t = setTimeout(() => setPhase("ready"), 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  const holder = (leadName || "").toUpperCase();
+  const selected = Z2CART_MOCK_CARDS.find((c) => c.id === selectedId) ?? Z2CART_MOCK_CARDS[0];
+
+  const handleSubmit = () => {
+    const cvvValue = mode === "z2cart" ? cvv : manual.cvv;
+    if (!cvvValue.trim()) { setError("CVV obrigatório"); return; }
+    setError(null);
+    onSubmit();
+  };
+
+  if (phase === "loading") {
+    return (
+      <div className="rounded-md border border-border bg-muted/30 p-4 h-[120px] flex items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Buscando seus cartões salvos...
+      </div>
+    );
+  }
+
+  if (mode === "manual") {
+    return (
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label>Número do cartão</Label>
+          <Input value={manual.number} onChange={(e) => setManual({ ...manual, number: e.target.value })} placeholder="0000 0000 0000 0000" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>Validade</Label>
+            <Input value={manual.expiry} onChange={(e) => setManual({ ...manual, expiry: e.target.value })} placeholder="MM/AA" />
+          </div>
+          <div className="space-y-1">
+            <Label>CVV</Label>
+            <Input value={manual.cvv} onChange={(e) => { setManual({ ...manual, cvv: e.target.value }); if (error) setError(null); }} placeholder="000" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label>Nome impresso no cartão</Label>
+          <Input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} />
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <button
+          type="button"
+          className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+          onClick={() => { setMode("z2cart"); setSelectedId(Z2CART_MOCK_CARDS[0].id); setError(null); }}
+        >
+          ← Voltar para meus cartões salvos
+        </button>
+        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={handleSubmit}>
+          {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {submitLabel}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      <div className="space-y-1">
-        <Label>Número do cartão</Label>
-        <Input value={card.number} onChange={(e) => setCard({ ...card, number: e.target.value })} placeholder="0000 0000 0000 0000" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>Validade</Label>
-          <Input value={card.expiry} onChange={(e) => setCard({ ...card, expiry: e.target.value })} placeholder="MM/AA" />
-        </div>
-        <div className="space-y-1">
-          <Label>CVV</Label>
-          <Input value={card.cvv} onChange={(e) => setCard({ ...card, cvv: e.target.value })} placeholder="000" />
+      <div
+        className="flex items-center gap-2 rounded-md px-3 py-2"
+        style={{ backgroundColor: "#7C3AED15", borderLeft: "3px solid #7C3AED" }}
+      >
+        <Zap className="h-4 w-4" style={{ color: "#7C3AED" }} />
+        <div className="text-xs">
+          <span className="font-semibold" style={{ color: "#7C3AED" }}>Z2Cart</span>
+          <span className="text-muted-foreground"> — Cartões recuperados automaticamente</span>
         </div>
       </div>
-      <div className="space-y-1">
-        <Label>Nome impresso no cartão</Label>
-        <Input value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} />
+
+      <div className="space-y-2">
+        {Z2CART_MOCK_CARDS.map((c) => {
+          const isSel = c.id === selectedId;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setSelectedId(c.id)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-md p-3 text-left transition",
+                isSel ? "border-2" : "border border-border hover:border-muted-foreground/40",
+              )}
+              style={isSel ? { borderColor: "#7C3AED", backgroundColor: "#7C3AED14" } : undefined}
+            >
+              <span
+                className="h-4 w-4 rounded-full border flex items-center justify-center"
+                style={isSel ? { borderColor: "#7C3AED" } : undefined}
+              >
+                {isSel && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#7C3AED" }} />}
+              </span>
+              <span
+                className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                style={{ backgroundColor: c.brand === "visa" ? "#1A1F71" : "#EB001B" }}
+              >
+                {c.brand}
+              </span>
+              <span className="font-mono text-sm">•••• •••• •••• {c.last4}</span>
+              <span className="ml-auto text-xs text-muted-foreground tabular-nums">{c.expiry}</span>
+            </button>
+          );
+        })}
       </div>
+
+      <div className="space-y-3 pt-1">
+        <div className="space-y-1">
+          <Label>Número do cartão</Label>
+          <div className="relative">
+            <Input readOnly value={`•••• •••• •••• ${selected.last4}`} className="bg-muted/40 font-mono pr-9" />
+            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>Validade</Label>
+            <Input readOnly value={selected.expiry} className="bg-muted/40" />
+          </div>
+          <div className="space-y-1">
+            <Label>CVV</Label>
+            <Input
+              value={cvv}
+              onChange={(e) => { setCvv(e.target.value.replace(/\D/g, "").slice(0, 4)); if (error) setError(null); }}
+              placeholder="000"
+              inputMode="numeric"
+            />
+            <p className="text-[11px] text-muted-foreground">Por segurança, o CVV nunca é armazenado.</p>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label>Nome impresso</Label>
+          <Input readOnly value={holder} className="bg-muted/40" />
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+
+      <button
+        type="button"
+        className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+        onClick={() => { setMode("manual"); setError(null); }}
+      >
+        Usar outro cartão
+      </button>
+
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={handleSubmit}>
+        {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+        {submitLabel}
+      </Button>
     </div>
   );
 }
@@ -266,9 +415,9 @@ function PixBlock({
 }
 
 function MethodFormBody({
-  type, value, installments, isPaying, onPay,
+  type, value, installments, isPaying, onPay, leadName,
 }: {
-  type: PayType; value: number; installments: number; isPaying: boolean; onPay: () => void;
+  type: PayType; value: number; installments: number; isPaying: boolean; onPay: () => void; leadName: string;
 }) {
   const installmentValue = value / Math.max(1, installments);
   if (type === "pix") return <PixBlock amount={value} isPaying={isPaying} onPay={onPay} />;
@@ -282,11 +431,12 @@ function MethodFormBody({
             Z2Pay — TMB — PIX
           </span>
         </div>
-        <CardFields />
-        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
-          {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Pagar {formatCurrency(value)}
-        </Button>
+        <Z2CartCardFields
+          leadName={leadName}
+          isPaying={isPaying}
+          submitLabel={`Pagar ${formatCurrency(value)}`}
+          onSubmit={onPay}
+        />
       </div>
     );
   }
@@ -569,12 +719,19 @@ export default function PublicCheckout() {
                 </div>
               )}
 
-              {flexMethod === "cartao" && <CardFields />}
+              {flexMethod === "cartao" && (
+                <Z2CartCardFields
+                  leadName={customer.name || data.lead_name}
+                  isPaying={isPaying}
+                  submitLabel={`Pagar ${formatCurrency(flexAmount)}`}
+                  onSubmit={() => { if (!flexError && flexAmount > 0) handleFlexPay(); }}
+                />
+              )}
               {flexMethod === "pix" && (
                 <PixBlock amount={flexAmount} isPaying={isPaying} onPay={handleFlexPay} />
               )}
 
-              {flexMethod !== "pix" && (
+              {flexMethod === "tmb" && (
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                   disabled={!!flexError || isPaying || flexAmount <= 0}
@@ -584,7 +741,7 @@ export default function PublicCheckout() {
                   Pagar {formatCurrency(flexAmount)}
                 </Button>
               )}
-              {flexMethod === "pix" && flexError && (
+              {(flexMethod === "pix" || flexMethod === "cartao") && flexError && (
                 <p className="text-xs text-red-600 text-center">Ajuste o valor para continuar.</p>
               )}
             </CardContent>
@@ -648,6 +805,7 @@ export default function PublicCheckout() {
                 installments={overrideLine.installments}
                 isPaying={isPaying}
                 onPay={() => handleArrangedPay(overrideLine.type)}
+                leadName={customer.name || data.lead_name}
               />
               <button
                 className="text-xs text-muted-foreground underline-offset-4 hover:underline"
@@ -667,6 +825,7 @@ export default function PublicCheckout() {
                   installments={lines[0].installments}
                   isPaying={isPaying}
                   onPay={() => handleArrangedPay(lines[0].type)}
+                  leadName={customer.name || data.lead_name}
                 />
               )}
             </div>
@@ -691,6 +850,7 @@ export default function PublicCheckout() {
                         installments={line.installments}
                         isPaying={isPaying}
                         onPay={() => handleArrangedPay(line.type)}
+                        leadName={customer.name || data.lead_name}
                       />
                     </AccordionContent>
                   </AccordionItem>
