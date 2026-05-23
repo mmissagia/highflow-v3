@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy, Zap } from "lucide-react";
+import { Lock, Shield, AlertCircle, Check, Pencil, Loader2, Copy, Zap, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,16 @@ interface PaymentLinkRow {
 
 const formatCurrency = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+
+const COMMON_FEMALE_NAMES = ["ana","maria","beatriz","clara","sofia","sophia","julia","júlia","leticia","letícia","larissa","fernanda","carla","patricia","patrícia","adriana","renata","vanessa","marta","helena","isabel","catarina","rita","camila","juliana","amanda","bianca","gabriela","mariana","carolina","carol","bruna","aline","raquel","priscila","tatiana","luana","luiza","luísa","luisa","manuela","alice","laura","valentina","heloisa","heloísa","cecilia","cecília","yasmin","melissa","natalia","natália"];
+const FEMALE_ENDINGS = ["a","e"];
+function isLikelyFemale(firstName: string): boolean {
+  const lower = firstName.trim().toLowerCase();
+  if (!lower) return false;
+  if (COMMON_FEMALE_NAMES.includes(lower)) return true;
+  const last = lower.slice(-1);
+  return FEMALE_ENDINGS.includes(last) && !lower.endsWith("é");
+}
 
 const methodLabel: Record<PayType, string> = {
   pix: "Pix",
@@ -139,6 +149,88 @@ function StateCard({ icon, title, hint }: { icon: React.ReactNode; title: string
       <p className="text-base font-semibold text-foreground">{title}</p>
       {hint && <p className="mt-2 text-sm text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+function QuittanceCard({
+  data,
+  email,
+  totalUnits,
+  unitSingular,
+  unitPlural,
+  lines,
+}: {
+  data: PaymentLinkRow;
+  email: string;
+  totalUnits: number;
+  unitSingular: string;
+  unitPlural: string;
+  lines?: PaymentLine[];
+}) {
+  const firstName = (data.lead_name?.trim().split(/\s+/)[0]) || "Cliente";
+  const female = isLikelyFemale(firstName);
+  const desc = (data.description || "").trim();
+  const isAvulsa = !desc || desc.toLowerCase() === "cobrança avulsa";
+  const showLines = !!lines && lines.length > 1;
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <CardContent className="space-y-5 p-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
+          <Check className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Bem-vind{female ? "a" : "o"}, {firstName}.
+          </h2>
+          {isAvulsa ? (
+            <p className="text-base text-foreground/80">Seu pagamento foi confirmado.</p>
+          ) : (
+            <p className="text-base text-foreground/80">
+              Sua vaga em <span className="font-semibold">{desc}</span> está garantida.
+            </p>
+          )}
+          <p className="pt-1 text-sm text-muted-foreground">
+            {formatCurrency(Number(data.value))} pagos em {totalUnits} {totalUnits === 1 ? unitSingular : unitPlural}.
+          </p>
+        </div>
+        <Separator className="my-2" />
+        {showLines && (
+          <div className="space-y-2 text-left">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Resumo da fatura
+            </p>
+            {lines!.map((line, i) => (
+              <div key={line.id} className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Etapa {i + 1} — {methodLabel[line.type]}
+                </span>
+                <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {email && (
+          <div className="mt-4 rounded-md border border-border bg-background/60 p-4 text-left">
+            <div className="flex items-start gap-3">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">Próximos passos</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Em instantes você receberá em{" "}
+                  <span className="font-medium text-foreground break-all">{email}</span> um e-mail
+                  com os detalhes da sua compra e instruções de acesso.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {data.closer_name && (
+          <p className="pt-2 text-xs italic text-muted-foreground">
+            Atendimento conduzido por {data.closer_name}.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -713,17 +805,13 @@ export default function PublicCheckout() {
         )}
 
         {isPaid ? (
-          <Card className="border-emerald-500/30 bg-emerald-500/5">
-            <CardContent className="p-8 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20">
-                <Check className="h-6 w-6 text-emerald-600" />
-              </div>
-              <p className="text-lg font-semibold">Fatura quitada!</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatCurrency(Number(data.value))} pagos em {data.transactions?.length ?? 0} transaç{(data.transactions?.length ?? 0) === 1 ? "ão" : "ões"}.
-              </p>
-            </CardContent>
-          </Card>
+          <QuittanceCard
+            data={data}
+            email={customer.email}
+            totalUnits={data.transactions?.length ?? 0}
+            unitSingular="transação"
+            unitPlural="transações"
+          />
         ) : (
           <Card>
             <CardContent className="p-5 space-y-4">
@@ -814,38 +902,14 @@ export default function PublicCheckout() {
   if (data.status === "paid") {
     return (
       <PageShell>
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardContent className="space-y-4 p-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
-              <Check className="h-8 w-8 text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">Fatura quitada!</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatCurrency(totalValue)} pagos em {totalLines || 1} {(totalLines || 1) === 1 ? "etapa" : "etapas"}.
-              </p>
-            </div>
-            {arrangedLines.length > 0 && (
-              <>
-                <Separator className="my-2" />
-                <div className="space-y-2 text-left">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Resumo</p>
-                  {arrangedLines.map((line, i) => (
-                    <div key={line.id} className="flex justify-between text-sm">
-                      <span>Etapa {i + 1} — {methodLabel[line.type]}</span>
-                      <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {customer.email && (
-              <p className="pt-2 text-xs text-muted-foreground">
-                Você receberá um e-mail em {customer.email} com os próximos passos.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <QuittanceCard
+          data={data}
+          email={customer.email}
+          totalUnits={totalLines || 1}
+          unitSingular="etapa"
+          unitPlural="etapas"
+          lines={arrangedLines}
+        />
       </PageShell>
     );
   }
