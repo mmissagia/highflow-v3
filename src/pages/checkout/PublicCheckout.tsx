@@ -70,6 +70,16 @@ interface PaymentLinkRow {
 const formatCurrency = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 
+const COMMON_FEMALE_NAMES = ["ana","maria","beatriz","clara","sofia","sophia","julia","júlia","leticia","letícia","larissa","fernanda","carla","patricia","patrícia","adriana","renata","vanessa","marta","helena","isabel","catarina","rita","camila","juliana","amanda","bianca","gabriela","mariana","carolina","carol","bruna","aline","raquel","priscila","tatiana","luana","luiza","luísa","luisa","manuela","alice","laura","valentina","heloisa","heloísa","cecilia","cecília","yasmin","melissa","natalia","natália"];
+const FEMALE_ENDINGS = ["a","e"];
+function isLikelyFemale(firstName: string): boolean {
+  const lower = firstName.trim().toLowerCase();
+  if (!lower) return false;
+  if (COMMON_FEMALE_NAMES.includes(lower)) return true;
+  const last = lower.slice(-1);
+  return FEMALE_ENDINGS.includes(last) && !lower.endsWith("é");
+}
+
 const methodLabel: Record<PayType, string> = {
   pix: "Pix",
   cartao: "Cartão Z2Pay",
