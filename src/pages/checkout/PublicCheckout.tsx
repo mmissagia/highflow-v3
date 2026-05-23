@@ -49,9 +49,6 @@ interface Transaction {
 interface PaymentLinkRow {
   id: string;
   lead_name: string;
-  lead_email: string | null;
-  lead_phone: string | null;
-  lead_cpf: string | null;
   description: string;
   value: number;
   payment_lines: PaymentLine[];
@@ -325,20 +322,18 @@ export default function PublicCheckout() {
 
   const loadLink = async () => {
     if (!linkId) { setNotFound(true); setLoading(false); return; }
-    const { data: row, error } = await supabase
-      .from("payment_links")
-      .select("*")
-      .eq("id", linkId)
-      .maybeSingle();
+    const { data: rows, error } = await (supabase as any)
+      .rpc("get_public_payment_link", { p_id: linkId });
+    const row = Array.isArray(rows) ? rows[0] : rows;
     if (error || !row) { setNotFound(true); setLoading(false); return; }
     const r = row as unknown as PaymentLinkRow;
     setData(r);
-    setCustomer({
-      name: r.lead_name && r.lead_name !== "Cliente (link de produto)" && r.lead_name !== "Cliente" ? r.lead_name : "",
-      cpf: r.lead_cpf ?? "",
-      email: r.lead_email ?? "",
-      phone: r.lead_phone ?? "",
-    });
+    setCustomer((prev) => ({
+      name: prev.name || (r.lead_name && r.lead_name !== "Cliente (link de produto)" && r.lead_name !== "Cliente" ? r.lead_name : ""),
+      cpf: prev.cpf,
+      email: prev.email,
+      phone: prev.phone,
+    }));
     if (r.mode === "flexible") {
       const remaining = Number(r.value) - Number(r.paid_amount);
       setFlexAmount(remaining);
@@ -358,20 +353,16 @@ export default function PublicCheckout() {
     if (!data) return;
     setIsPaying(true);
     await new Promise((r) => setTimeout(r, 2000));
-    const { error } = await supabase
-      .from("payment_links")
-      .update({
-        status: "paid",
-        paid_method: method,
-        paid_at: new Date().toISOString(),
-        lead_name: customer.name || data.lead_name,
-        lead_cpf: customer.cpf || data.lead_cpf,
-        lead_email: customer.email || data.lead_email,
-        lead_phone: customer.phone || data.lead_phone,
-      })
-      .eq("id", data.id);
+    const { data: ok, error } = await (supabase as any).rpc("mark_payment_link_paid", {
+      p_id: data.id,
+      p_method: method,
+      p_customer_name: customer.name,
+      p_customer_cpf: customer.cpf,
+      p_customer_email: customer.email,
+      p_customer_phone: customer.phone,
+    });
     setIsPaying(false);
-    if (!error) {
+    if (!error && ok) {
       setData({ ...data, status: "paid", paid_method: method });
     } else {
       toast.error("Falha ao confirmar pagamento");
@@ -381,35 +372,20 @@ export default function PublicCheckout() {
   // ---- FLEXIBLE payment (one transaction at a time) ----
   const handleFlexPay = async () => {
     if (!data) return;
-    const tx: Transaction = {
-      id: `tx_${crypto.randomUUID().slice(0, 5)}`,
-      method: flexMethod,
-      value: flexAmount,
-      installments: flexMethod === "pix" ? 1 : flexInstallments,
-      status: "paid",
-      paid_at: new Date().toISOString(),
-    };
     setIsPaying(true);
     await new Promise((r) => setTimeout(r, 2000));
-    const newPaid = Number(data.paid_amount) + flexAmount;
-    const newStatus: PaymentLinkRow["status"] = newPaid + 0.001 >= Number(data.value) ? "paid" : "partial";
-    const newTxs = [...(data.transactions ?? []), tx];
-    const { error } = await supabase
-      .from("payment_links")
-      .update({
-        transactions: newTxs as unknown as never,
-        paid_amount: newPaid,
-        status: newStatus,
-        paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-        paid_method: newStatus === "paid" ? flexMethod : null,
-        lead_name: customer.name || data.lead_name,
-        lead_cpf: customer.cpf || data.lead_cpf,
-        lead_email: customer.email || data.lead_email,
-        lead_phone: customer.phone || data.lead_phone,
-      })
-      .eq("id", data.id);
+    const { data: ok, error } = await (supabase as any).rpc("record_payment_link_transaction", {
+      p_id: data.id,
+      p_method: flexMethod,
+      p_value: flexAmount,
+      p_installments: flexMethod === "pix" ? 1 : flexInstallments,
+      p_customer_name: customer.name,
+      p_customer_cpf: customer.cpf,
+      p_customer_email: customer.email,
+      p_customer_phone: customer.phone,
+    });
     setIsPaying(false);
-    if (error) { toast.error("Falha ao confirmar pagamento"); return; }
+    if (error || !ok) { toast.error("Falha ao confirmar pagamento"); return; }
     toast.success(`Pagamento de ${formatCurrency(flexAmount)} confirmado`);
     await loadLink();
   };
@@ -439,8 +415,8 @@ export default function PublicCheckout() {
   const consultLabel = data.closer_role || "Consultor(a)";
   const prefilled = {
     name: !!data.lead_name && data.lead_name !== "Cliente" && data.lead_name !== "Cliente (link de produto)",
-    email: !!data.lead_email,
-    phone: !!data.lead_phone,
+    email: false,
+    phone: false,
   };
 
   // Fatura header card (common to both modes)
@@ -631,9 +607,9 @@ export default function PublicCheckout() {
           <p className="mt-1 text-sm text-muted-foreground">
             pago via {methodLabel[(data.paid_method || "pix") as PayType] ?? data.paid_method}
           </p>
-          {data.lead_email && (
+          {customer.email && (
             <p className="mt-4 text-sm text-muted-foreground">
-              Você receberá um e-mail em <span className="font-medium text-foreground">{data.lead_email}</span> com os próximos passos.
+              Você receberá um e-mail em <span className="font-medium text-foreground">{customer.email}</span> com os próximos passos.
             </p>
           )}
         </div>
