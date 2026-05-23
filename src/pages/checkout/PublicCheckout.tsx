@@ -435,6 +435,7 @@ function MethodFormBody({
   type: PayType; value: number; installments: number; isPaying: boolean; onPay: () => void; leadName: string;
 }) {
   const installmentValue = value / Math.max(1, installments);
+  const [tmbTermsAccepted, setTmbTermsAccepted] = useState(false);
   if (type === "pix") return <PixBlock amount={value} isPaying={isPaying} onPay={onPay} />;
   if (type === "cartao") {
     return (
@@ -442,9 +443,6 @@ function MethodFormBody({
         <div className="rounded-md bg-muted/50 p-3 text-sm">
           <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
           <p className="text-xs text-muted-foreground">Total {formatCurrency(value)}</p>
-          <span className="mt-2 inline-block rounded px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "#7C3AED15", color: "#7C3AED" }}>
-            Z2Pay — TMB — PIX
-          </span>
         </div>
         <Z2CartCardFields
           leadName={leadName}
@@ -461,7 +459,20 @@ function MethodFormBody({
         <p className="font-medium">{installments}x {formatCurrency(installmentValue)}</p>
         <p className="text-xs text-muted-foreground">Boleto financiado via TMB — análise rápida</p>
       </div>
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying} onClick={onPay}>
+      <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3">
+        <Checkbox
+          id={`tmb-terms-${value}`}
+          checked={tmbTermsAccepted}
+          onCheckedChange={(v) => setTmbTermsAccepted(!!v)}
+          className="mt-0.5"
+        />
+        <label htmlFor={`tmb-terms-${value}`} className="cursor-pointer text-xs leading-relaxed">
+          Li e concordo com os <a href="#" className="underline">termos do financiamento via TMB</a>,
+          incluindo as condições de parcelamento, taxa de juros, política de cobrança e
+          consequências em caso de inadimplência.
+        </label>
+      </div>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isPaying || !tmbTermsAccepted} onClick={onPay}>
         {isPaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         Gerar boletos {formatCurrency(value)}
       </Button>
