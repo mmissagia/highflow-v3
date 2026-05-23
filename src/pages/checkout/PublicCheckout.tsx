@@ -490,6 +490,7 @@ export default function PublicCheckout() {
   const [singleFormDialogOpen, setSingleFormDialogOpen] = useState(false);
   const [overrideLine, setOverrideLine] = useState<PaymentLine | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [openAccordionId, setOpenAccordionId] = useState<string | undefined>(undefined);
 
   // Flexible state
   const [flexAmount, setFlexAmount] = useState<number>(0);
@@ -524,8 +525,36 @@ export default function PublicCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkId]);
 
-  // ---- ARRANGED payment (single completes the link) ----
-  const handleArrangedPay = async (method: PayType) => {
+  // ---- ARRANGED payment: confirm one line at a time ----
+  const handleLineConfirm = async (lineId: string, method: PayType, lineValue: number) => {
+    if (!data) return;
+    setIsPaying(true);
+    await new Promise((r) => setTimeout(r, 2000));
+    const { data: ok, error } = await (supabase as any).rpc("mark_payment_line_paid", {
+      p_id: data.id,
+      p_line_id: lineId,
+      p_method: method,
+      p_customer_name: customer.name,
+      p_customer_cpf: customer.cpf,
+      p_customer_email: customer.email,
+      p_customer_phone: customer.phone,
+    });
+    setIsPaying(false);
+    if (error || !ok) { toast.error("Falha ao confirmar pagamento"); return; }
+    toast.success(`Pagamento de ${formatCurrency(lineValue)} via ${methodLabel[method]} confirmado`);
+    await loadLink();
+    // auto-open next unpaid line
+    setTimeout(() => {
+      setData((curr) => {
+        if (!curr) return curr;
+        const next = (curr.payment_lines ?? []).find((l) => !l.paid);
+        setOpenAccordionId(next?.id);
+        return curr;
+      });
+    }, 0);
+  };
+  // override (single form) handler — confirms a synthetic single line
+  const handleOverridePay = async (method: PayType) => {
     if (!data) return;
     setIsPaying(true);
     await new Promise((r) => setTimeout(r, 2000));
@@ -538,11 +567,8 @@ export default function PublicCheckout() {
       p_customer_phone: customer.phone,
     });
     setIsPaying(false);
-    if (!error && ok) {
-      setData({ ...data, status: "paid", paid_method: method });
-    } else {
-      toast.error("Falha ao confirmar pagamento");
-    }
+    if (!error && ok) setData({ ...data, status: "paid", paid_method: method });
+    else toast.error("Falha ao confirmar pagamento");
   };
 
   // ---- FLEXIBLE payment (one transaction at a time) ----
