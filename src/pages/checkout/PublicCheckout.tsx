@@ -152,6 +152,88 @@ function StateCard({ icon, title, hint }: { icon: React.ReactNode; title: string
   );
 }
 
+function QuittanceCard({
+  data,
+  email,
+  totalUnits,
+  unitSingular,
+  unitPlural,
+  lines,
+}: {
+  data: PaymentLinkRow;
+  email: string;
+  totalUnits: number;
+  unitSingular: string;
+  unitPlural: string;
+  lines?: PaymentLine[];
+}) {
+  const firstName = (data.lead_name?.trim().split(/\s+/)[0]) || "Cliente";
+  const female = isLikelyFemale(firstName);
+  const desc = (data.description || "").trim();
+  const isAvulsa = !desc || desc.toLowerCase() === "cobrança avulsa";
+  const showLines = !!lines && lines.length > 1;
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <CardContent className="space-y-5 p-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
+          <Check className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">
+            Bem-vind{female ? "a" : "o"}, {firstName}.
+          </h2>
+          {isAvulsa ? (
+            <p className="text-base text-foreground/80">Seu pagamento foi confirmado.</p>
+          ) : (
+            <p className="text-base text-foreground/80">
+              Sua vaga em <span className="font-semibold">{desc}</span> está garantida.
+            </p>
+          )}
+          <p className="pt-1 text-sm text-muted-foreground">
+            {formatCurrency(Number(data.value))} pagos em {totalUnits} {totalUnits === 1 ? unitSingular : unitPlural}.
+          </p>
+        </div>
+        <Separator className="my-2" />
+        {showLines && (
+          <div className="space-y-2 text-left">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Resumo da fatura
+            </p>
+            {lines!.map((line, i) => (
+              <div key={line.id} className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Etapa {i + 1} — {methodLabel[line.type]}
+                </span>
+                <span className="tabular-nums font-medium">{formatCurrency(Number(line.value))}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {email && (
+          <div className="mt-4 rounded-md border border-border bg-background/60 p-4 text-left">
+            <div className="flex items-start gap-3">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">Próximos passos</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Em instantes você receberá em{" "}
+                  <span className="font-medium text-foreground break-all">{email}</span> um e-mail
+                  com os detalhes da sua compra e instruções de acesso.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {data.closer_name && (
+          <p className="pt-2 text-xs italic text-muted-foreground">
+            Atendimento conduzido por {data.closer_name}.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface CustomerData { name: string; cpf: string; email: string; phone: string }
 
 function CustomerCard({
