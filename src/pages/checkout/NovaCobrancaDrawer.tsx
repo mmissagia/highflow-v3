@@ -18,6 +18,8 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import LeadComboboxWithCreate from "@/components/LeadComboboxWithCreate";
 import LeadInlineCreateForm, { type ValidState } from "@/components/LeadInlineCreateForm";
 import useUnifiedLeads from "@/hooks/useUnifiedLeads";
@@ -76,6 +78,7 @@ export function NovaCobrancaDrawer({
   prefilledLead?: { name: string; email: string; pipelineValue: number };
 }) {
   const [step, setStep] = useState<"form" | "confirmation">("form");
+  const [mode, setMode] = useState<"arranged" | "flexible">("arranged");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [product, setProduct] = useState("");
   const [customProduct, setCustomProduct] = useState("");
@@ -85,6 +88,14 @@ export function NovaCobrancaDrawer({
   const [discountValue, setDiscountValue] = useState(0);
   const [couponCode, setCouponCode] = useState("");
   const [paymentLines, setPaymentLines] = useState<PaymentLine[]>([]);
+
+  // Flexible mode config
+  const [flexMinAmount, setFlexMinAmount] = useState<number>(0);
+  const [flexMethods, setFlexMethods] = useState<{ pix: boolean; cartao: boolean; tmb: boolean }>({ pix: true, cartao: true, tmb: false });
+  const [flexCartaoMax, setFlexCartaoMax] = useState<number>(12);
+  const [flexTmbMax, setFlexTmbMax] = useState<number>(12);
+  const [flexInstruction, setFlexInstruction] = useState<string>("");
+
   const [closerId, setCloserId] = useState<string>("");
   const [dueDate, setDueDate] = useState<Date>();
   const [notes, setNotes] = useState("");
@@ -201,6 +212,7 @@ export function NovaCobrancaDrawer({
 
   const reset = () => {
     setStep("form");
+    setMode("arranged");
     setSelectedLeadId("");
     setProduct("");
     setCustomProduct("");
@@ -217,6 +229,11 @@ export function NovaCobrancaDrawer({
     setInlineDraftOpen(false);
     setInlineQuery("");
     setInlineDraftState(null);
+    setFlexMinAmount(0);
+    setFlexMethods({ pix: true, cartao: true, tmb: false });
+    setFlexCartaoMax(12);
+    setFlexTmbMax(12);
+    setFlexInstruction("");
   };
 
   const finishWithInvoice = async (
@@ -236,6 +253,18 @@ export function NovaCobrancaDrawer({
       return;
     }
 
+    const allowedMethods = (Object.keys(flexMethods) as Array<keyof typeof flexMethods>).filter((k) => flexMethods[k]);
+    const flexibleConfig =
+      mode === "flexible"
+        ? {
+            min_amount_per_tx: flexMinAmount || Math.round(finalValue * 0.1),
+            allowed_methods: allowedMethods,
+            cartao_max_installments: flexCartaoMax,
+            tmb_max_installments: flexTmbMax,
+            instruction: flexInstruction || null,
+          }
+        : null;
+
     const { error } = await supabase.from("payment_links").insert({
       id: linkId,
       producer_id: userId,
@@ -244,7 +273,9 @@ export function NovaCobrancaDrawer({
       lead_phone: clientPhone || null,
       description: desc || "Cobrança avulsa",
       value: finalValue,
-      payment_lines: paymentLines as unknown as never,
+      payment_lines: (mode === "arranged" ? paymentLines : []) as unknown as never,
+      mode,
+      flexible_config: flexibleConfig as unknown as never,
       closer_name: closer.name,
       closer_initials: closer.initials,
       due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
@@ -259,6 +290,10 @@ export function NovaCobrancaDrawer({
     const link = `${window.location.origin}/pay/${linkId}`;
     setGeneratedLink(link);
     setConfirmedClientName(clientName);
+
+    if (mode === "flexible") {
+      toast.success(`Link flexível gerado — saldo a pagar: ${formatCurrency(finalValue)}`);
+    }
 
     onInvoiceCreated({
       linkId,
@@ -344,7 +379,8 @@ export function NovaCobrancaDrawer({
     !totalValue ||
     totalValue <= 0 ||
     isSubmitting ||
-    (inlineDraftOpen ? !inlineDraftState?.isValid : !selectedLeadId);
+    (inlineDraftOpen ? !inlineDraftState?.isValid : !selectedLeadId) ||
+    (mode === "flexible" && !Object.values(flexMethods).some(Boolean));
 
   const handleClose = (v: boolean) => {
     if (!v) reset();
