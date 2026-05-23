@@ -536,6 +536,7 @@ export function NovaCobrancaDrawer({
             </div>
 
             {/* Payment arrangement */}
+            {mode === "arranged" ? (
             <div className="space-y-3">
               <Label>Arranjo de pagamento</Label>
               {paymentLines.map((line) => (
@@ -637,6 +638,74 @@ export function NovaCobrancaDrawer({
                 </div>
               )}
             </div>
+            ) : (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <Label>Configuração do pagamento flexível</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Valor mínimo por transação (R$)</Label>
+                <Input
+                  type="number"
+                  value={flexMinAmount || ""}
+                  placeholder={String(Math.round((finalValue || 0) * 0.1))}
+                  onChange={(e) => setFlexMinAmount(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Meios aceitos</Label>
+                <div className="flex flex-wrap gap-3">
+                  {([
+                    { key: "pix" as const, label: "🟢 Pix" },
+                    { key: "cartao" as const, label: "💳 Cartão Z2Pay" },
+                    { key: "tmb" as const, label: "📄 Boleto TMB" },
+                  ]).map((m) => (
+                    <label key={m.key} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={flexMethods[m.key]}
+                        onCheckedChange={(v) => setFlexMethods((s) => ({ ...s, [m.key]: !!v }))}
+                      />
+                      {m.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {flexMethods.cartao && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Cartão — máx parcelas</Label>
+                  <Select value={String(flexCartaoMax)} onValueChange={(v) => setFlexCartaoMax(Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {flexMethods.tmb && (
+                <div className="space-y-1">
+                  <Label className="text-xs">TMB — máx parcelas</Label>
+                  <Select value={String(flexTmbMax)} onValueChange={(v) => setFlexTmbMax(Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs">Instrução ao cliente (opcional)</Label>
+                <Textarea
+                  rows={2}
+                  maxLength={200}
+                  placeholder="Ex: Pague o que puder agora; saldo será cobrado em até 30 dias."
+                  value={flexInstruction}
+                  onChange={(e) => setFlexInstruction(e.target.value)}
+                />
+              </div>
+            </div>
+            )}
 
             {/* Closer */}
             <div className="space-y-2">
