@@ -719,12 +719,19 @@ export default function PublicCheckout() {
                 </div>
               )}
 
-              {flexMethod === "cartao" && <CardFields />}
+              {flexMethod === "cartao" && (
+                <Z2CartCardFields
+                  leadName={customer.name || data.lead_name}
+                  isPaying={isPaying}
+                  submitLabel={`Pagar ${formatCurrency(flexAmount)}`}
+                  onSubmit={() => { if (!flexError && flexAmount > 0) handleFlexPay(); }}
+                />
+              )}
               {flexMethod === "pix" && (
                 <PixBlock amount={flexAmount} isPaying={isPaying} onPay={handleFlexPay} />
               )}
 
-              {flexMethod !== "pix" && (
+              {flexMethod === "tmb" && (
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                   disabled={!!flexError || isPaying || flexAmount <= 0}
@@ -734,7 +741,7 @@ export default function PublicCheckout() {
                   Pagar {formatCurrency(flexAmount)}
                 </Button>
               )}
-              {flexMethod === "pix" && flexError && (
+              {(flexMethod === "pix" || flexMethod === "cartao") && flexError && (
                 <p className="text-xs text-red-600 text-center">Ajuste o valor para continuar.</p>
               )}
             </CardContent>
@@ -798,6 +805,7 @@ export default function PublicCheckout() {
                 installments={overrideLine.installments}
                 isPaying={isPaying}
                 onPay={() => handleArrangedPay(overrideLine.type)}
+                leadName={customer.name || data.lead_name}
               />
               <button
                 className="text-xs text-muted-foreground underline-offset-4 hover:underline"
@@ -817,6 +825,7 @@ export default function PublicCheckout() {
                   installments={lines[0].installments}
                   isPaying={isPaying}
                   onPay={() => handleArrangedPay(lines[0].type)}
+                  leadName={customer.name || data.lead_name}
                 />
               )}
             </div>
@@ -841,6 +850,7 @@ export default function PublicCheckout() {
                         installments={line.installments}
                         isPaying={isPaying}
                         onPay={() => handleArrangedPay(line.type)}
+                        leadName={customer.name || data.lead_name}
                       />
                     </AccordionContent>
                   </AccordionItem>
