@@ -13,6 +13,7 @@ import {
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getPublicAppUrl } from "@/config/appUrl";
 
 const mockProducts = [
   "Mentoria Elite",
@@ -123,7 +124,7 @@ export function NovoLinkProdutoDrawer({
       return;
     }
 
-    const link = `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/pay/${linkId}`;
+    const link = `${getPublicAppUrl()}/pay/${linkId}`;
     setGeneratedLink(link);
 
     onLinkCreated({
