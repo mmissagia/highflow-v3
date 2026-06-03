@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { mockInvoicesData, formatCurrency, statusConfig } from "@/data/checkoutData";
 import { NovaCobrancaDrawer } from "@/pages/checkout/NovaCobrancaDrawer";
 import { PulsaGlyph } from "@/components/ai/PulsaGlyph";
+import { getPublicAppUrl } from "@/config/appUrl";
 import { formatRelativeTime } from "@/lib/utils";
 
 const now = Date.now();
@@ -358,7 +359,7 @@ export default function Conversas() {
         open={cobrancaOpen}
         onOpenChange={setCobrancaOpen}
         onInvoiceCreated={(data) => {
-          const link = `${window.location.origin}/pay/${data.linkId}`;
+          const link = `${getPublicAppUrl()}/pay/${data.linkId}`;
           setChatMessages((prev) => [
             ...prev,
             {

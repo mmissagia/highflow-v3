@@ -25,6 +25,7 @@ import LeadInlineCreateForm, { type ValidState } from "@/components/LeadInlineCr
 import useUnifiedLeads from "@/hooks/useUnifiedLeads";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getPublicAppUrl } from "@/config/appUrl";
 
 const mockProducts = [
   "Mentoria Elite",
@@ -289,7 +290,7 @@ export function NovaCobrancaDrawer({
       return;
     }
 
-    const link = `${window.location.origin}/pay/${linkId}`;
+    const link = `${getPublicAppUrl()}/pay/${linkId}`;
     setGeneratedLink(link);
     setConfirmedClientName(clientName);
 
