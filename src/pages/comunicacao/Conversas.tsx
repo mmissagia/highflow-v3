@@ -358,7 +358,7 @@ export default function Conversas() {
         open={cobrancaOpen}
         onOpenChange={setCobrancaOpen}
         onInvoiceCreated={(data) => {
-          const link = `${window.location.origin}/pay/${data.linkId}`;
+          const link = `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/pay/${data.linkId}`;
           setChatMessages((prev) => [
             ...prev,
             {
