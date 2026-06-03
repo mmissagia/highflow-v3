@@ -75,7 +75,7 @@ export function NovaCobrancaDrawer({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onInvoiceCreated: (inv: InvoiceResult) => void;
-  prefilledLead?: { name: string; email: string; pipelineValue: number };
+  prefilledLead?: { name: string; email: string; phone?: string; pipelineValue: number };
 }) {
   const [step, setStep] = useState<"form" | "confirmation">("form");
   const [mode, setMode] = useState<"arranged" | "flexible">("arranged");
@@ -322,7 +322,7 @@ export function NovaCobrancaDrawer({
       await finishWithInvoice(
         selectedLead?.name || "Cliente",
         selectedLead?.email || "",
-        selectedLead?.phone || undefined,
+        selectedLead?.phone || prefilledLead?.phone || undefined,
       );
       return;
     }
