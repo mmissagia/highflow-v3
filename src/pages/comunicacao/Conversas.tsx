@@ -30,10 +30,10 @@ const PULSA_SUGGESTION = {
 };
 
 const conversations = [
-  { id: 1, name: "João Silva", email: "joao@email.com", lastMessage: "Qual o valor da mentoria?", lastMessageAt: conversationTimestamps[1], unread: 2, stage: "Warm" },
-  { id: 2, name: "Maria Santos", email: "maria@email.com", lastMessage: "Recebi o link, vou olhar!", lastMessageAt: conversationTimestamps[2], unread: 0, stage: "Follow-up" },
-  { id: 3, name: "Pedro Costa", email: "pedro@email.com", lastMessage: "Posso parcelar em quantas vezes?", lastMessageAt: conversationTimestamps[3], unread: 1, stage: "Call Agendada" },
-  { id: 4, name: "Ana Oliveira", email: "ana@email.com", lastMessage: "Obrigada pelas informações!", lastMessageAt: conversationTimestamps[4], unread: 0, stage: "Engajado" },
+  { id: 1, name: "João Silva", email: "joao@email.com", phone: "+55 11 99999-9999", lastMessage: "Qual o valor da mentoria?", lastMessageAt: conversationTimestamps[1], unread: 2, stage: "Warm" },
+  { id: 2, name: "Maria Santos", email: "maria@email.com", phone: "+55 21 98888-8888", lastMessage: "Recebi o link, vou olhar!", lastMessageAt: conversationTimestamps[2], unread: 0, stage: "Follow-up" },
+  { id: 3, name: "Pedro Costa", email: "pedro@email.com", phone: "+55 31 97777-7777", lastMessage: "Posso parcelar em quantas vezes?", lastMessageAt: conversationTimestamps[3], unread: 1, stage: "Call Agendada" },
+  { id: 4, name: "Ana Oliveira", email: "ana@email.com", phone: "+55 41 96666-6666", lastMessage: "Obrigada pelas informações!", lastMessageAt: conversationTimestamps[4], unread: 0, stage: "Engajado" },
 ];
 
 const currentChat = {

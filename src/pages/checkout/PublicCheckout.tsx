@@ -54,6 +54,8 @@ interface Transaction {
 interface PaymentLinkRow {
   id: string;
   lead_name: string;
+  lead_email?: string;
+  lead_phone?: string;
   description: string;
   value: number;
   payment_lines: PaymentLine[];
