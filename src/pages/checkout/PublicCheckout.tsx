@@ -593,8 +593,8 @@ export default function PublicCheckout() {
     setCustomer((prev) => ({
       name: prev.name || (r.lead_name && r.lead_name !== "Cliente (link de produto)" && r.lead_name !== "Cliente" ? r.lead_name : ""),
       cpf: prev.cpf,
-      email: prev.email,
-      phone: prev.phone,
+      email: prev.email || r.lead_email || "",
+      phone: prev.phone || r.lead_phone || "",
     }));
     if (r.mode === "flexible") {
       const remaining = Number(r.value) - Number(r.paid_amount);

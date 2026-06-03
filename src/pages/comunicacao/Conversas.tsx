@@ -372,6 +372,7 @@ export default function Conversas() {
         prefilledLead={selectedConvData ? {
           name: selectedConvData.name,
           email: selectedConvData.email,
+          phone: selectedConvData.phone,
           pipelineValue: 25000,
         } : undefined}
       />
