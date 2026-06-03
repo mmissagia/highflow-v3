@@ -322,7 +322,7 @@ export function NovaCobrancaDrawer({
       await finishWithInvoice(
         selectedLead?.name || "Cliente",
         selectedLead?.email || "",
-        selectedLead?.phone || undefined,
+        selectedLead?.phone || prefilledLead?.phone || undefined,
       );
       return;
     }
