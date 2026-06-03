@@ -289,7 +289,7 @@ export function NovaCobrancaDrawer({
       return;
     }
 
-    const link = `${window.location.origin}/pay/${linkId}`;
+    const link = `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/pay/${linkId}`;
     setGeneratedLink(link);
     setConfirmedClientName(clientName);
 
