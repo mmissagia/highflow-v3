@@ -5,7 +5,7 @@
  * Em produção, mantém-se o domínio publicado. Em dev local cai para window.location.origin.
  * Se você conectar um domínio próprio, basta atualizar PUBLIC_APP_URL abaixo.
  */
-export const PUBLIC_APP_URL = "https://highflow-v2.lovable.app";
+export const PUBLIC_APP_URL = "https://highflow-v3.lovable.app";
 
 export function getPublicAppUrl(): string {
   if (typeof window !== "undefined") {
