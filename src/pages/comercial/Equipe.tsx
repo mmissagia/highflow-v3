@@ -173,13 +173,13 @@ export default function Equipe() {
               if (dealsErr) { toast.error('Erro deals: ' + dealsErr.message); return; }
 
               const { error: actErr } = await supabase.from('sales_activities').insert([
-                { user_id: authUser.id, lead_id: 'lead-1', sales_user_id: sdr1,    activity_type: 'call',    occurred_at: new Date(Date.now() - 2 * 86400000).toISOString(), status: 'completed', outcome: 'Confirmou orçamento acima de R$ 15k. Alta receptividade.',   next_step: 'Agendar reunião com Closer' },
-                { user_id: authUser.id, lead_id: 'lead-2', sales_user_id: closer1, activity_type: 'meeting', occurred_at: new Date(Date.now() - 3 * 86400000).toISOString(), status: 'completed', outcome: 'Reunião de diagnóstico. Objeção de agenda identificada.',     next_step: 'Enviar proposta personalizada' },
-                { user_id: authUser.id, lead_id: 'lead-4', sales_user_id: sdr1,    activity_type: 'message', occurred_at: new Date(Date.now() - 1 * 86400000).toISOString(), status: 'completed', outcome: 'Sequência WhatsApp — 3 mensagens. Taxa de resposta: 100%.', next_step: 'Aguardar retorno' },
-                { user_id: authUser.id, lead_id: 'lead-3', sales_user_id: closer1, activity_type: 'call',    occurred_at: new Date(Date.now() - 4 * 86400000).toISOString(), status: 'completed', outcome: 'Follow-up pós-proposta. Objeção de prazo. Lead pediu 1 semana.', next_step: 'Ligar em 7 dias' },
-                { user_id: authUser.id, lead_id: 'lead-5', sales_user_id: closer2!, activity_type: 'meeting', occurred_at: new Date(Date.now() - 5 * 86400000).toISOString(), status: 'completed', outcome: 'Pitch presencial. Proposta de R$ 15k. Lead muito engajado.', next_step: 'Aguardar assinatura' },
-                { user_id: authUser.id, lead_id: 'lead-2', sales_user_id: sdr2!,   activity_type: 'call',    occurred_at: new Date(Date.now() - 6 * 3600000).toISOString(),  status: 'completed', outcome: 'Primeiro contato — indicação do Rafael. Alta receptividade.', next_step: 'Preparar diagnóstico' },
-                { user_id: authUser.id, lead_id: 'lead-1', sales_user_id: sdr1,    activity_type: 'message', occurred_at: new Date(Date.now() - 7 * 86400000).toISOString(), status: 'completed', outcome: 'E-mail de nurturing sobre ROI de mentorias. Abertura: 68%.', next_step: 'Monitorar engajamento' },
+                { user_id: authUser.id, lead_id: 'lead-1', sales_user_id: sdr1,    activity_type: 'CALL',         occurred_at: new Date(Date.now() - 2 * 86400000).toISOString(), status: 'done', outcome: 'Confirmou orçamento acima de R$ 15k. Alta receptividade.',   next_step: 'Agendar reunião com Closer' },
+                { user_id: authUser.id, lead_id: 'lead-2', sales_user_id: closer1, activity_type: 'MEETING_DONE', occurred_at: new Date(Date.now() - 3 * 86400000).toISOString(), status: 'done', outcome: 'Reunião de diagnóstico. Objeção de agenda identificada.',     next_step: 'Enviar proposta personalizada' },
+                { user_id: authUser.id, lead_id: 'lead-4', sales_user_id: sdr1,    activity_type: 'WHATSAPP',     occurred_at: new Date(Date.now() - 1 * 86400000).toISOString(), status: 'done', outcome: 'Sequência WhatsApp — 3 mensagens. Taxa de resposta: 100%.', next_step: 'Aguardar retorno' },
+                { user_id: authUser.id, lead_id: 'lead-3', sales_user_id: closer1, activity_type: 'CALL',         occurred_at: new Date(Date.now() - 4 * 86400000).toISOString(), status: 'done', outcome: 'Follow-up pós-proposta. Objeção de prazo. Lead pediu 1 semana.', next_step: 'Ligar em 7 dias' },
+                { user_id: authUser.id, lead_id: 'lead-5', sales_user_id: closer2!, activity_type: 'MEETING_DONE', occurred_at: new Date(Date.now() - 5 * 86400000).toISOString(), status: 'done', outcome: 'Pitch presencial. Proposta de R$ 15k. Lead muito engajado.', next_step: 'Aguardar assinatura' },
+                { user_id: authUser.id, lead_id: 'lead-2', sales_user_id: sdr2!,   activity_type: 'CALL',         occurred_at: new Date(Date.now() - 6 * 3600000).toISOString(),  status: 'done', outcome: 'Primeiro contato — indicação do Rafael. Alta receptividade.', next_step: 'Preparar diagnóstico' },
+                { user_id: authUser.id, lead_id: 'lead-1', sales_user_id: sdr1,    activity_type: 'WHATSAPP',     occurred_at: new Date(Date.now() - 7 * 86400000).toISOString(), status: 'done', outcome: 'E-mail de nurturing sobre ROI de mentorias. Abertura: 68%.', next_step: 'Monitorar engajamento' },
               ]);
               if (actErr) { toast.error('Erro atividades: ' + actErr.message); return; }
 
@@ -196,8 +196,8 @@ export default function Equipe() {
                     deal_id: deal.id,
                     sales_user_id: deal.closer_id!,
                     commission_value: deal.amount_value * 0.08,
-                    status: 'pago',
-                    period_month: '2026-03',
+                    status: 'paid',
+                    period_month: new Date().toISOString().slice(0, 7),
                   }))
                 );
                 if (comErr) { toast.error('Erro comissões: ' + comErr.message); return; }
