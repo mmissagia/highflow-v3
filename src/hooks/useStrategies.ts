@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrg } from '@/contexts/OrgContext';
 import type { Node, Edge } from '@xyflow/react';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -36,22 +37,23 @@ export function useStrategies() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { activeCompanyId } = useOrg();
 
   const { data: strategies = [], isLoading } = useQuery({
-    queryKey: ['strategies', user?.id],
+    queryKey: ['strategies', activeCompanyId],
     queryFn: async () => {
-      if (!user) return [];
-      
+      if (!activeCompanyId) return [];
+
       const { data, error } = await supabase
         .from('strategies')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('org_id', activeCompanyId)
         .order('updated_at', { ascending: false });
-      
+
       if (error) throw error;
       return (data as DbStrategy[]).map(parseStrategy);
     },
-    enabled: !!user,
+    enabled: !!activeCompanyId,
   });
 
   const createStrategy = useMutation({
@@ -60,11 +62,12 @@ export function useStrategies() {
       
       const { data, error } = await supabase
         .from('strategies')
-        .insert({ 
-          name, 
-          nodes: nodes as unknown as Json, 
+        .insert({
+          name,
+          nodes: nodes as unknown as Json,
           edges: edges as unknown as Json,
-          user_id: user.id
+          user_id: user.id,
+          org_id: activeCompanyId!,
         })
         .select()
         .single();

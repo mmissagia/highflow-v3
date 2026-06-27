@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 
 export default function Conexoes() {
   const { user } = useAuth();
+  const { activeCompanyId } = useOrg();
   const queryClient = useQueryClient();
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -84,6 +86,7 @@ export default function Conexoes() {
       } else {
         const { error } = await supabase.from("connections").insert({
           user_id: user!.id,
+          org_id: activeCompanyId!,
           provider,
           api_key_encrypted: key,
           status: "connected",

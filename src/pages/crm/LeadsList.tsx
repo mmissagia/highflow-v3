@@ -25,7 +25,7 @@ export default function LeadsList() {
   const [recentlyCreatedLeadId, setRecentlyCreatedLeadId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const { leads: unifiedLeads } = useUnifiedLeads();
+  const { leads: unifiedLeads, refetch } = useUnifiedLeads();
   const { data: stageOverrides } = useLeadStageOverrides();
 
   const leads: Lead[] = useMemo(() => {
@@ -275,10 +275,9 @@ export default function LeadsList() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(lead) => {
+          void refetch();
           if (lead?.id !== undefined) {
             setRecentlyCreatedLeadId(String(lead.id));
-          } else if (filteredLeads[0]) {
-            setRecentlyCreatedLeadId(String(filteredLeads[0].id));
           }
           setCreateOpen(false);
         }}

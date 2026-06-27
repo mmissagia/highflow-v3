@@ -35,10 +35,14 @@ import {
   Smartphone,
   Sun,
   Moon,
+  Building2,
+  Network,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { ModuleKey } from "@/config/permissions";
 import { useTheme } from "next-themes";
 import { Badge } from "@/components/ui/badge";
 import { Fragment } from "react";
@@ -183,14 +187,43 @@ const menuGroups: MenuSection[] = [
       },
     ],
   },
+  {
+    label: "Organizações",
+    groups: [
+      {
+        title: "Organizações",
+        icon: Network,
+        items: [
+          { title: "Empresas & Agências", url: "/organizacoes", icon: Building2 },
+        ],
+      },
+    ],
+  },
 ];
+
+const SECTION_MODULE: Record<string, ModuleKey> = {
+  Home: "dashboard",
+  CRM: "crm",
+  Comercial: "comercial",
+  Monetização: "monetizacao",
+  Comunicação: "comunicacao",
+  Entrega: "entrega",
+  Configurações: "infra",
+  Organizações: "orgs",
+};
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   const { signOut, user } = useAuth();
+  const { can } = usePermissions();
   const { resolvedTheme, setTheme } = useTheme();
+
+  const visibleSections = menuGroups.filter((section) => {
+    const mod = SECTION_MODULE[section.label];
+    return mod ? can(mod) : true;
+  });
 
   const isActiveGroup = (items: { url: string }[]) => {
     return items.some((item) => currentPath === item.url || currentPath.startsWith(item.url + "/"));
@@ -213,9 +246,9 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {menuGroups.map((section) => (
+        {visibleSections.map((section) => (
           <Fragment key={section.label}>
-          {section.label === "CRM" && (
+          {section.label === "CRM" && can("ia") && (
             <SidebarGroup key="copiloto-ia-highlight">
               <SidebarGroupLabel>IA</SidebarGroupLabel>
               <SidebarGroupContent>

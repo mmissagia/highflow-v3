@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ const mockEduzzProducts = [
 
 export default function LeadSourceSelector() {
   const { user } = useAuth();
+  const { activeCompanyId } = useOrg();
   const queryClient = useQueryClient();
   const [sourceType, setSourceType] = useState<"CRM" | "PRODUCTS">("CRM");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("");
@@ -70,6 +72,7 @@ export default function LeadSourceSelector() {
     mutationFn: async (product: typeof mockEduzzProducts[0]) => {
       const { error } = await supabase.from("lead_sources").insert({
         user_id: user!.id,
+        org_id: activeCompanyId!,
         name: product.name,
         type: "EXTERNAL_PRODUCT",
         provider: selectedPlatform,

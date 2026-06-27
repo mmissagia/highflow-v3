@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import LeadComboboxWithCreate from "@/components/LeadComboboxWithCreate";
 import LeadInlineCreateForm, { type ValidState } from "@/components/LeadInlineCreateForm";
 import useUnifiedLeads from "@/hooks/useUnifiedLeads";
+import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getPublicAppUrl } from "@/config/appUrl";
@@ -78,6 +79,7 @@ export function NovaCobrancaDrawer({
   onInvoiceCreated: (inv: InvoiceResult) => void;
   prefilledLead?: { name: string; email: string; phone?: string; pipelineValue: number };
 }) {
+  const { activeCompanyId } = useOrg();
   const [step, setStep] = useState<"form" | "confirmation">("form");
   const [mode, setMode] = useState<"arranged" | "flexible">("arranged");
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -240,6 +242,7 @@ export function NovaCobrancaDrawer({
   const finishWithInvoice = async (
     clientName: string,
     clientEmail: string,
+    leadId: string | null,
     clientPhone?: string,
   ) => {
     if (!closer) return;
@@ -266,9 +269,34 @@ export function NovaCobrancaDrawer({
           }
         : null;
 
+    // Record the sale as a won deal so it reflects on the dashboard. Payment
+    // realization (paid vs pending) is tracked separately on the payment_link;
+    // when it is paid, a trigger moves the linked lead to 'fechou'.
+    let dealId: string | null = null;
+    if (leadId && activeCompanyId) {
+      const { data: deal } = await supabase
+        .from("deals")
+        .insert({
+          user_id: userId,
+          org_id: activeCompanyId,
+          lead_id: leadId,
+          amount_value: finalValue,
+          stage: "won",
+          won_at: new Date().toISOString(),
+          closer_id: closer.id,
+        })
+        .select("id")
+        .single();
+      dealId = deal?.id ?? null;
+    }
+
     const { error } = await supabase.from("payment_links").insert({
       id: linkId,
       producer_id: userId,
+      org_id: activeCompanyId!,
+      lead_id: leadId,
+      closer_user_id: closer.id,
+      deal_id: dealId,
       lead_name: clientName || "Cliente",
       lead_email: clientEmail || null,
       lead_phone: clientPhone || null,
@@ -323,6 +351,7 @@ export function NovaCobrancaDrawer({
       await finishWithInvoice(
         selectedLead?.name || "Cliente",
         selectedLead?.email || "",
+        selectedLeadId,
         selectedLead?.phone || prefilledLead?.phone || undefined,
       );
       return;
@@ -346,6 +375,7 @@ export function NovaCobrancaDrawer({
           .from("manual_leads")
           .insert({
             user_id: userId,
+            org_id: activeCompanyId!,
             name: inlineDraftState.draft.name,
             email: inlineDraftState.draft.email,
             phone: inlineDraftState.draft.phone,
@@ -370,7 +400,7 @@ export function NovaCobrancaDrawer({
           return;
         }
 
-        await finishWithInvoice(newLead.name, newLead.email ?? "", newLead.phone ?? undefined);
+        await finishWithInvoice(newLead.name, newLead.email ?? "", newLead.id, newLead.phone ?? undefined);
       } finally {
         setIsSubmitting(false);
       }

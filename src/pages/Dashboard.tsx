@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalContextSelector } from "@/components/GlobalContextSelector";
 import { Link } from "react-router-dom";
-import { mockInvoicesData, formatCurrency } from "@/data/checkoutData";
+import { formatCurrency } from "@/data/checkoutData";
+import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 import { AIInsightCard } from "@/components/ai";
 import { getDashboardDailyInsight, getDashboardAlertContext } from "@/lib/aiMocks";
 import { 
@@ -45,13 +46,7 @@ const hotLeadsAging = [
   { id: 5, name: "Fernanda Lima", stage: "Warm", days: 6, value: 25000 },
 ];
 
-const funnelData = [
-  { stage: "Lead Frio", count: 1200, conversion: 100 },
-  { stage: "Engajado", count: 840, conversion: 70 },
-  { stage: "Warm", count: 504, conversion: 42 },
-  { stage: "Call Agendada", count: 252, conversion: 21 },
-  { stage: "Fechou", count: 76, conversion: 6.3 },
-];
+// Funnel + metric cards now come from useDashboardMetrics (real, per active company).
 
 const paymentsAtRisk = [
   { id: 1, lead: "Carlos Mendes", type: "PIX expirando", value: 35000, deadline: "Hoje" },
@@ -59,6 +54,7 @@ const paymentsAtRisk = [
 ];
 
 export default function Dashboard() {
+  const { data: m } = useDashboardMetrics();
   return (
     <div className="space-y-6">
       <div>
@@ -201,10 +197,10 @@ export default function Dashboard() {
 
       {/* 3. Grid 4 colunas — 4 MetricCards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="Receita Total" value="R$ 1.54M" icon={DollarSign} trend={{ value: 24.5, label: "vs. mês anterior" }} variant="green" />
-        <MetricCard title="Leads Ativos" value="487" icon={Users} trend={{ value: 12.3, label: "vs. mês anterior" }} variant="primary" />
-        <MetricCard title="Taxa de Conversão" value="6.3%" icon={Target} trend={{ value: -2.1, label: "vs. mês anterior" }} variant="yellow" />
-        <MetricCard title="Ticket Médio" value="R$ 18.7k" icon={TrendingUp} trend={{ value: 8.7, label: "vs. mês anterior" }} variant="default" />
+        <MetricCard title="Receita (vendas)" value={formatCurrency(m?.wonRevenue ?? 0)} icon={DollarSign} variant="green" />
+        <MetricCard title="Leads Ativos" value={String(m?.activeLeads ?? 0)} icon={Users} variant="primary" />
+        <MetricCard title="Taxa de Conversão" value={`${(m?.conversion ?? 0).toFixed(1)}%`} icon={Target} variant="yellow" />
+        <MetricCard title="Ticket Médio" value={formatCurrency(m?.ticket ?? 0)} icon={TrendingUp} variant="default" />
       </div>
 
       {/* 4. Grid 2 colunas — Funil Visual + BarChart */}
@@ -216,7 +212,7 @@ export default function Dashboard() {
           <CardHeader><CardTitle>Funil de Conversão</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={funnelData} layout="vertical">
+              <BarChart data={m?.funnel ?? []} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="stage" type="category" width={120} />
@@ -235,20 +231,10 @@ export default function Dashboard() {
 }
 
 function CheckoutDashboardSection() {
-  const paidTotal = mockInvoicesData.filter((i) => i.status === "paga").reduce((s, i) => s + i.value, 0);
-  const pendingTotal = mockInvoicesData.filter((i) => i.status === "pendente" || i.status === "enviada").reduce((s, i) => s + i.value, 0);
-  const overdueInvoices = mockInvoicesData.filter((i) => i.status === "vencida");
-  const overdueTotal = overdueInvoices.reduce((s, i) => s + i.value, 0);
-
-  const monthlyRevenue = [
-    { month: "Out", value: 38000 },
-    { month: "Nov", value: 52000 },
-    { month: "Dez", value: 45000 },
-    { month: "Jan", value: 61000 },
-    { month: "Fev", value: 72000 },
-    { month: "Mar", value: paidTotal },
-  ];
-  const maxRevenue = Math.max(...monthlyRevenue.map((m) => m.value));
+  const { data: m } = useDashboardMetrics();
+  const paidTotal = m?.paidTotal ?? 0;
+  const pendingTotal = m?.pendingTotal ?? 0;
+  const linkCount = m?.linkCount ?? 0;
 
   return (
     <Link to="/checkout-ht" className="block">
@@ -266,7 +252,7 @@ function CheckoutDashboardSection() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground">Receita realizada</p>
               <p className="text-lg font-bold text-emerald-600 tabular-nums">{formatCurrency(paidTotal)}</p>
@@ -276,25 +262,8 @@ function CheckoutDashboardSection() {
               <p className="text-lg font-bold text-amber-500 tabular-nums">{formatCurrency(pendingTotal)}</p>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Faturas vencidas</p>
-              <p className="text-lg font-bold text-red-500 tabular-nums">
-                {overdueInvoices.length} ({formatCurrency(overdueTotal)})
-              </p>
-            </div>
-          </div>
-          {/* Mini bar chart */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Receita — últimos 6 meses</p>
-            <div className="flex items-end gap-2 h-16">
-              {monthlyRevenue.map((m) => (
-                <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                  <div
-                    className="w-full rounded-sm bg-primary/80"
-                    style={{ height: `${(m.value / maxRevenue) * 100}%`, minHeight: 4 }}
-                  />
-                  <span className="text-[10px] text-muted-foreground">{m.month}</span>
-                </div>
-              ))}
+              <p className="text-xs text-muted-foreground">Cobranças</p>
+              <p className="text-lg font-bold tabular-nums">{linkCount}</p>
             </div>
           </div>
         </CardContent>

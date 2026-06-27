@@ -1,1 +1,7 @@
 project_id = "sngznhxrptvycljvcslq"
+
+# Local-dev only: the analytics/vector container can't mount the Docker socket
+# under Colima (virtiofs), which breaks `supabase start`. Disabling it has no
+# effect on the hosted (Lovable-managed) project.
+[analytics]
+enabled = false

@@ -19,6 +19,7 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrg } from "@/contexts/OrgContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -42,6 +43,7 @@ interface Props {
 
 export default function LeadComercialTab({ leadId }: Props) {
   const { user } = useAuth();
+  const { activeCompanyId } = useOrg();
   const queryClient = useQueryClient();
   const [assignOpen, setAssignOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -126,7 +128,7 @@ export default function LeadComercialTab({ leadId }: Props) {
       // Deactivate existing of same type
       await supabase.from("lead_assignments").update({ active: false }).eq("lead_id", leadId).eq("assignment_type", assignForm.type);
       const { error } = await supabase.from("lead_assignments").insert({
-        user_id: user!.id, lead_id: leadId,
+        user_id: user!.id, org_id: activeCompanyId!, lead_id: leadId,
         assigned_to_sales_user_id: assignForm.sales_user_id,
         assigned_by_user_id: user!.id,
         assignment_type: assignForm.type,
@@ -144,7 +146,7 @@ export default function LeadComercialTab({ leadId }: Props) {
   const activityMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("sales_activities").insert({
-        user_id: user!.id, lead_id: leadId,
+        user_id: user!.id, org_id: activeCompanyId!, lead_id: leadId,
         sales_user_id: activityForm.sales_user_id,
         activity_type: activityForm.activity_type,
         status: activityForm.scheduled_at ? "planned" : "done",
@@ -172,7 +174,7 @@ export default function LeadComercialTab({ leadId }: Props) {
 
       // Create deal
       const { data: deal, error } = await supabase.from("deals").insert({
-        user_id: user!.id, lead_id: leadId,
+        user_id: user!.id, org_id: activeCompanyId!, lead_id: leadId,
         amount_value: dealForm.amount_value,
         stage: dealForm.stage,
         closer_id: dealForm.closer_id || null,
@@ -193,7 +195,7 @@ export default function LeadComercialTab({ leadId }: Props) {
         if (commissionValue > 0) {
           const period = new Date().toISOString().slice(0, 7);
           await supabase.from("commission_records").insert({
-            user_id: user!.id, deal_id: deal.id,
+            user_id: user!.id, org_id: activeCompanyId!, deal_id: deal.id,
             sales_user_id: closerUser.id,
             commission_value: commissionValue,
             period_month: period,
@@ -203,7 +205,7 @@ export default function LeadComercialTab({ leadId }: Props) {
 
       // Create activity record
       await supabase.from("sales_activities").insert({
-        user_id: user!.id, lead_id: leadId,
+        user_id: user!.id, org_id: activeCompanyId!, lead_id: leadId,
         sales_user_id: dealForm.closer_id || (sdrAssignment?.assigned_to_sales_user_id ?? salesUsers[0]?.id),
         activity_type: dealForm.stage === "won" ? "DEAL_WON" : "DEAL_LOST",
         status: "done",

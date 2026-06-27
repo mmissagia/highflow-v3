@@ -2,12 +2,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GlobalFilterProvider } from "@/contexts/GlobalFilterContext";
 import { StrategyProvider } from "@/contexts/StrategyContext";
+import { OrgProvider, useOrg } from "@/contexts/OrgContext";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
+import { NoAccess } from "@/components/NoAccess";
+import { moduleForPath, canAccessModule } from "@/config/permissions";
 import { Loader2 } from "lucide-react";
 import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { AIAgentPanel } from "@/components/ai-agent/AIAgentPanel";
@@ -57,6 +61,7 @@ import Conexoes from "./pages/Conexoes";
 import Seguranca from "./pages/infra/Seguranca";
 import Configuracoes from "./pages/infra/Configuracoes";
 import Usuarios from "./pages/Usuarios";
+import OrgConsole from "./pages/OrgConsole";
 
 // Comercial
 import Equipe from "./pages/comercial/Equipe";
@@ -91,6 +96,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function ModuleGate({ children }: { children: React.ReactNode }) {
+  const { loading, role, companies } = useOrg();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!role && companies.length === 0) {
+    return <NoAccess variant="no-company" />;
+  }
+
+  const moduleKey = moduleForPath(location.pathname);
+  if (moduleKey && !canAccessModule(role, moduleKey)) {
+    return <NoAccess variant="forbidden" />;
   }
 
   return <>{children}</>;
@@ -148,12 +177,14 @@ function AppLayoutInner() {
         <div className="flex-1 flex flex-col">
           <header className="h-16 border-b border-border bg-background flex items-center px-6">
             <SidebarTrigger className="mr-4" />
+            <OrgSwitcher />
             <div className="flex-1" />
             <ThemeToggle className="mr-2" />
             <AIHeaderBadge alertCount={8} onClick={openAlerts} />
           </header>
           <main className="flex-1 p-6 bg-muted/30">
             <Breadcrumb className="mb-4" />
+            <ModuleGate>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/performance/relatorios" element={<Relatorios />} />
@@ -217,8 +248,10 @@ function AppLayoutInner() {
               <Route path="/infra/seguranca" element={<Seguranca />} />
               <Route path="/infra/configuracoes" element={<Configuracoes />} />
               <Route path="/usuarios" element={<Usuarios />} />
+              <Route path="/organizacoes" element={<OrgConsole />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </ModuleGate>
           </main>
         </div>
       </div>
@@ -233,13 +266,15 @@ function AppLayoutInner() {
 function AppLayout() {
   return (
     <ProtectedRoute>
-      <StrategyProvider>
-        <GlobalFilterProvider>
-          <SidebarProvider>
-            <AppLayoutInner />
-          </SidebarProvider>
-        </GlobalFilterProvider>
-      </StrategyProvider>
+      <OrgProvider>
+        <StrategyProvider>
+          <GlobalFilterProvider>
+            <SidebarProvider>
+              <AppLayoutInner />
+            </SidebarProvider>
+          </GlobalFilterProvider>
+        </StrategyProvider>
+      </OrgProvider>
     </ProtectedRoute>
   );
 }

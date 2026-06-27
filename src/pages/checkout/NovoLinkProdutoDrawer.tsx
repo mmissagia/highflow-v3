@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrg } from "@/contexts/OrgContext";
 import { toast } from "sonner";
 import { getPublicAppUrl } from "@/config/appUrl";
 
@@ -46,6 +47,7 @@ export function NovoLinkProdutoDrawer({
   onOpenChange: (v: boolean) => void;
   onLinkCreated: (inv: LinkResult) => void;
 }) {
+  const { activeCompanyId } = useOrg();
   const [step, setStep] = useState<"form" | "result">("form");
   const [product, setProduct] = useState("");
   const [offerName, setOfferName] = useState("");
@@ -111,6 +113,7 @@ export function NovoLinkProdutoDrawer({
     const { error } = await supabase.from("payment_links").insert({
       id: linkId,
       producer_id: userId,
+      org_id: activeCompanyId!,
       lead_name: "Cliente (link de produto)",
       description: offerName || product,
       value,

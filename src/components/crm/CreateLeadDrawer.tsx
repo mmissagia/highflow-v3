@@ -8,6 +8,10 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useOrg } from "@/contexts/OrgContext";
+import { useQuery } from "@tanstack/react-query";
 
 const pipelineStages = [
   { id: "lead-frio", title: "Lead Frio" },
@@ -22,10 +26,12 @@ const pipelineStages = [
 ];
 
 const originOptions = ["Instagram", "Facebook", "LinkedIn", "Indicação", "Evento", "Outro"];
+const NONE = "__none";
 
 interface CreateLeadDrawerProps {
   open: boolean;
   onClose: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onCreated: (lead: any) => void;
   defaultStage?: string;
 }
@@ -38,12 +44,31 @@ const emptyForm = {
   stage: "lead-frio",
   dealValue: "",
   pitch: "",
+  closer_user_id: "",
+  sdr_user_id: "",
 };
 
 export function CreateLeadDrawer({ open, onClose, onCreated, defaultStage }: CreateLeadDrawerProps) {
+  const { user } = useAuth();
+  const { activeCompanyId } = useOrg();
   const [form, setForm] = useState({ ...emptyForm, stage: defaultStage || "lead-frio" });
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: salesUsers = [] } = useQuery({
+    queryKey: ["sales_users_active", activeCompanyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_users")
+        .select("id, name, role")
+        .eq("status", "active");
+      if (error) throw error;
+      return data as { id: string; name: string; role: string }[];
+    },
+    enabled: open && !!activeCompanyId,
+  });
+  const closers = salesUsers.filter((s) => s.role === "CLOSER" || s.role === "LEADER");
+  const sdrs = salesUsers.filter((s) => s.role === "SDR");
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -53,36 +78,53 @@ export function CreateLeadDrawer({ open, onClose, onCreated, defaultStage }: Cre
   const handleSubmit = async () => {
     const newErrors: Record<string, boolean> = {};
     if (!form.name.trim()) newErrors.name = true;
-    if (!form.phone.trim()) newErrors.phone = true;
-
+    if (!form.phone.trim() && !form.email.trim()) {
+      newErrors.phone = true;
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      toast.error("Informe o nome e ao menos telefone ou e-mail");
+      return;
+    }
+    if (!activeCompanyId) {
+      toast.error("Nenhuma empresa ativa selecionada");
       return;
     }
 
     setIsSubmitting(true);
-    // Simulate async
-    await new Promise((r) => setTimeout(r, 400));
+    const { data, error } = await supabase
+      .from("manual_leads")
+      .insert({
+        user_id: user!.id,
+        org_id: activeCompanyId,
+        name: form.name.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        closer_user_id: form.closer_user_id || null,
+        sdr_user_id: form.sdr_user_id || null,
+        origin: form.origin,
+        created_via: "manual",
+        stage: form.stage,
+        pipeline_value: form.dealValue ? Number(form.dealValue) : null,
+        pitch: form.pitch.trim() || null,
+      })
+      .select()
+      .single();
+    setIsSubmitting(false);
 
-    const newLead = {
-      id: Math.floor(Math.random() * 100000),
-      name: form.name.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim() || `${form.name.trim().toLowerCase().replace(/\s/g, ".")}@email.com`,
-      origin: form.origin,
-      stage: form.stage,
-      dealValue: Number(form.dealValue) || 0,
-      pitch: form.pitch.trim() || null,
-      score: 50,
-      responsible: "Não atribuído",
-      lastContact: new Date().toISOString(),
-    };
+    if (error) {
+      if ((error as { code?: string }).code === "23505") {
+        toast.error("Já existe um lead com esse e-mail ou telefone.");
+      } else {
+        toast.error("Erro ao criar lead: " + error.message);
+      }
+      return;
+    }
 
-    onCreated(newLead);
-    toast.success(`Lead ${newLead.name} criado com sucesso.`);
+    onCreated(data);
+    toast.success(`Lead ${form.name.trim()} criado com sucesso.`);
     setForm({ ...emptyForm, stage: defaultStage || "lead-frio" });
     setErrors({});
-    setIsSubmitting(false);
     onClose();
   };
 
@@ -120,14 +162,14 @@ export function CreateLeadDrawer({ open, onClose, onCreated, defaultStage }: Cre
 
           {/* Telefone */}
           <div className="space-y-1.5">
-            <Label>Telefone *</Label>
+            <Label>Telefone</Label>
             <Input
               placeholder="(11) 99999-0000"
               value={form.phone}
               onChange={(e) => handleChange("phone", e.target.value)}
               className={errors.phone ? "border-red-500" : ""}
             />
-            {errors.phone && <p className="text-xs text-red-500">Telefone é obrigatório</p>}
+            {errors.phone && <p className="text-xs text-red-500">Informe telefone ou e-mail</p>}
           </div>
 
           {/* Email */}
@@ -165,6 +207,40 @@ export function CreateLeadDrawer({ open, onClose, onCreated, defaultStage }: Cre
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Closer / SDR (opcionais) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Closer</Label>
+              <Select
+                value={form.closer_user_id || NONE}
+                onValueChange={(v) => handleChange("closer_user_id", v === NONE ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Sem closer" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Sem closer</SelectItem>
+                  {closers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>SDR</Label>
+              <Select
+                value={form.sdr_user_id || NONE}
+                onValueChange={(v) => handleChange("sdr_user_id", v === NONE ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Sem SDR" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Sem SDR</SelectItem>
+                  {sdrs.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Valor estimado */}

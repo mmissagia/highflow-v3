@@ -40,10 +40,19 @@ export async function seedDemoCampaigns(
 
   if (edges.length === 0) return 0;
 
+  // campaigns inherit the org of their parent strategy
+  const { data: strat } = await supabase
+    .from('strategies')
+    .select('org_id')
+    .eq('id', strategyId)
+    .single();
+  const orgId = (strat?.org_id ?? null) as string | null;
+
   const records = edges.flatMap((edge) => {
     const count = Math.random() > 0.4 ? 2 : 1;
     return pickRandom(MOCK_POOL, count).map((mock) => ({
       strategy_id: strategyId,
+      org_id: orgId!,
       edge_source: edge.source,
       edge_target: edge.target,
       ...mock,
