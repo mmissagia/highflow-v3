@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       campaigns: {
@@ -50,12 +55,14 @@ export type Database = {
           {
             foreignKeyName: "campaigns_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "campaigns_strategy_id_fkey"
             columns: ["strategy_id"]
+            isOneToOne: false
             referencedRelation: "strategies"
             referencedColumns: ["id"]
           },
@@ -102,18 +109,21 @@ export type Database = {
           {
             foreignKeyName: "commission_records_deal_id_fkey"
             columns: ["deal_id"]
+            isOneToOne: false
             referencedRelation: "deals"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "commission_records_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "commission_records_sales_user_id_fkey"
             columns: ["sales_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
@@ -184,12 +194,14 @@ export type Database = {
           {
             foreignKeyName: "connected_products_connection_id_fkey"
             columns: ["connection_id"]
+            isOneToOne: false
             referencedRelation: "connections"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "connected_products_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -233,6 +245,7 @@ export type Database = {
           {
             foreignKeyName: "connections_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -294,18 +307,21 @@ export type Database = {
           {
             foreignKeyName: "deals_closer_id_fkey"
             columns: ["closer_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "deals_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "deals_sdr_id_fkey"
             columns: ["sdr_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
@@ -358,12 +374,14 @@ export type Database = {
           {
             foreignKeyName: "lead_assignments_assigned_to_sales_user_id_fkey"
             columns: ["assigned_to_sales_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lead_assignments_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -419,12 +437,14 @@ export type Database = {
           {
             foreignKeyName: "lead_sources_connection_id_fkey"
             columns: ["connection_id"]
+            isOneToOne: false
             referencedRelation: "connections"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lead_sources_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -456,6 +476,7 @@ export type Database = {
           {
             foreignKeyName: "lead_stage_overrides_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -517,18 +538,21 @@ export type Database = {
           {
             foreignKeyName: "manual_leads_closer_user_id_fkey"
             columns: ["closer_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "manual_leads_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "manual_leads_sdr_user_id_fkey"
             columns: ["sdr_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
@@ -566,6 +590,7 @@ export type Database = {
           {
             foreignKeyName: "org_memberships_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -603,6 +628,7 @@ export type Database = {
           {
             foreignKeyName: "organizations_parent_org_id_fkey"
             columns: ["parent_org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -697,24 +723,28 @@ export type Database = {
           {
             foreignKeyName: "payment_links_closer_user_id_fkey"
             columns: ["closer_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payment_links_deal_id_fkey"
             columns: ["deal_id"]
+            isOneToOne: false
             referencedRelation: "deals"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payment_links_lead_id_fkey"
             columns: ["lead_id"]
+            isOneToOne: false
             referencedRelation: "manual_leads"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payment_links_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -776,12 +806,14 @@ export type Database = {
           {
             foreignKeyName: "product_enrollments_connected_product_id_fkey"
             columns: ["connected_product_id"]
+            isOneToOne: false
             referencedRelation: "connected_products"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "product_enrollments_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -840,12 +872,14 @@ export type Database = {
           {
             foreignKeyName: "sales_activities_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sales_activities_sales_user_id_fkey"
             columns: ["sales_user_id"]
+            isOneToOne: false
             referencedRelation: "sales_users"
             referencedColumns: ["id"]
           },
@@ -910,6 +944,7 @@ export type Database = {
           {
             foreignKeyName: "sales_users_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -950,6 +985,7 @@ export type Database = {
           {
             foreignKeyName: "strategies_org_id_fkey"
             columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -996,6 +1032,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ensure_platform_super_admin: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
       get_public_payment_link: {
         Args: { p_id: string }
         Returns: {
